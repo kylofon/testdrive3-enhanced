@@ -19,6 +19,15 @@ static void set_err(char *err, size_t n, const char *fmt, ...)
 
 static u16 le16(const u8 *p) { return (u16)(p[0] | p[1] << 8); }
 
+/* The file name part of `path`, for messages. */
+static const char *file_name(const char *path)
+{
+    const char *name = path;
+    for (const char *p = path; *p; p++)
+        if (*p == '/' || *p == '\\') name = p + 1;
+    return name;
+}
+
 typedef struct { u16 seg, off; } Reloc;
 
 /* Microsoft EXEPACK: decompresses the load image in place (backwards) and returns the relocation
@@ -133,7 +142,11 @@ bool mem_load_exe(const char *path, char *err, size_t errlen)
     }
 
     if (image_len != 0x28A90 || lin(LOAD_SEG, 0) + image_len > lin(HEAP_BOTTOM, 0)) {
-        set_err(err, errlen, "%s: unexpected load image size %u", path, (unsigned)image_len);
+        /* Said so that a player can tell which release they have (README, "Supported game version"). */
+        set_err(err, errlen, "%s is a different release of Test Drive III"
+                " (load image %u bytes; this port needs %u).\n"
+                "See README, 'Supported game version'.\n\nFile: %s",
+                file_name(path), (unsigned)image_len, (unsigned)0x28A90, path);
         goto done;
     }
     memset(mem, 0, sizeof mem);
@@ -152,7 +165,9 @@ bool mem_load_exe(const char *path, char *err, size_t errlen)
     if (memcmp(mp(DGROUP, 0x0137), "free RAM needed for TEST DRIVE III.", 35) != 0 ||
         memcmp(mp(DGROUP, 0x0202), "TD3.CFG", 7) != 0 ||
         memcmp(mp(DGROUP, 0xC960), "INSTR.DAT", 9) != 0) {
-        set_err(err, errlen, "%s is not the expected TDIII.EXE (Test Drive III: The Passion)", path);
+        set_err(err, errlen, "%s is a different release of Test Drive III"
+                " (its program is not the TDIII.EXE this port needs).\n"
+                "See README, 'Supported game version'.\n\nFile: %s", file_name(path), path);
         goto done;
     }
 

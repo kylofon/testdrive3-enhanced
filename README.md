@@ -39,6 +39,30 @@ files are not included.
 * A multi-core CPU for the default picture; lower the resolution or anti-aliasing on slow machines.
 * To build: CMake 3.24+, C11, SDL 3; the launcher needs C++17 and wxWidgets 3.2.
 
+## Supported game version
+
+The port supports exactly one release of the game, and refuses any other with "… is a different release of Test
+Drive III (load image … bytes; this port needs 166544)" or "… its program is not the TDIII.EXE this port needs".
+
+* Game: *Test Drive III: The Passion* (Accolade, 1990), the DOS program `TDIII.EXE` built with Microsoft C 5.1.
+  The port's notes do not record a version number.
+* The program as reverse-engineered: `TDIII.EXE`, 125 251 bytes, compressed with EXEPACK; unpacked, its load
+  image is **166 544 bytes** (0x28A90). The port accepts the file packed or unpacked: the load image is what it
+  checks.
+* `TDIII.EXE` with SHA-1 `a09b0d620b91247976a7d172fd433e8c6af25926` works (reported by a user).
+* The program may also be named `TD3.EXE`, but the `TD3.EXE` copies reported so far are a different release
+  (load image 179 568 bytes) that this port cannot load.
+
+To see a file's hash on Windows, open a command prompt in the game folder and type
+`certutil -hashfile TDIII.EXE SHA1`; on Linux or macOS, `sha1sum TDIII.EXE`. If you report a problem, give the
+file's size and SHA-1.
+
+`testdrive3-enhanced --check --game-dir Game` says whether the program in `Game` loads, without opening a window.
+
+The car and course lists (in the game and the launcher) come from `PLAYDISK.DAT` only: to add the cars and
+courses of a bonus or scenery disk, use the game's own installer or merge tool, so that it writes them into
+`PLAYDISK.DAT`; copying the files alone does not list them.
+
 ## Build
 
 In Git Bash or an MSYS2 MinGW64 shell:
