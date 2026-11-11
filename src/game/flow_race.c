@@ -128,7 +128,7 @@ void race_run(void)
         }
         if (DSW(DS_race_state) != 3 && DSW(DS_race_state) != 2) view_present();
         race_input(2);
-        random();
+        td3_random();
 
         if (DSB(DS_last_surface) != DSB(DS_surface_under_car)) {
             if (DSB(DS_ext_view) == 0) {
@@ -174,7 +174,7 @@ void race_run(void)
         /* frame pacing. PORT (PLAN.md decision 4): the original waits for 5 ticks; the port waits for
          * host_frame_ticks() ticks (default 29, --frame-ticks), DS:B70E keeps the measured ticks. */
         while ((u16)(DSW(DS_tick_count) - now) < (u16)host_frame_ticks()) {
-            random();
+            td3_random();
             host_pump();
         }
     }

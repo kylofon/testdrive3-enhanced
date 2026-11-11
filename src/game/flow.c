@@ -428,7 +428,7 @@ void nop_1518(void) {}
 void nop_151a(void) {}
 
 /* 0000:0f58 random — game_flow.md §4.4 (verified) */
-u16 random(void)
+u16 td3_random(void)
 {
     u32 seed = (u32)DSW(DS_rand_hi) << 16 | DSW(DS_rand_lo);
     seed = seed * 0x41C64E6Du + 0x3039u;                   /* u32 wrap */

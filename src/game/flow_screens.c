@@ -260,7 +260,7 @@ s16 wait_key(s16 n)
     u16 k;
     for (u16 i = 1; i != (u16)n; ) {
         bios_wait_ticks(2);
-        k = random();
+        k = td3_random();
         key_poll(&k);
         if (k != 0) return (s16)(k & 0xff);
         if (n != 0) i++;
@@ -395,7 +395,7 @@ s16 title_sequence(void)
         key_poll(&k);
         if (DSB(DS_skip_flag) != 0) return 0;
         while (t == DSW(DS_tick_count)) {                      /* one 145.6 Hz tick */
-            k = random();
+            k = td3_random();
             host_pump();                                       /* PORT: busy wait */
         }
         gfx_move_to(x, 0x41);
@@ -517,7 +517,7 @@ s16 credits_text(u16 s_ds)
         o = print_text(s_ds, o);
         for (s16 i = 0; i < 0x27; i++) {
             bios_wait_ticks(2);
-            k = random();
+            k = td3_random();
             key_poll(&k);
             if (k != 0) return 0;
         }
