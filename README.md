@@ -3,6 +3,14 @@
 An enhanced native port of Accolade's *Test Drive III: The Passion* (1990). Not an emulator. The original game
 files are not included.
 
+## Analysis-driven fork work
+
+This fork is also used to verify reverse-engineered behavior in the file loaders,
+course maps, and traffic AI. Investigation sessions and findings are recorded in
+the [`td3-analysis-docs` repository](https://github.com/Miragecoder/td3-analysis-docs/tree/master/sessions);
+implementation changes in this fork are driven by those sessions and validated
+against the game source and available course data.
+
 ## Features
 
 * Smooth 3D view at your display's refresh rate.
