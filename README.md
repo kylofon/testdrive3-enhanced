@@ -5,11 +5,11 @@ files are not included.
 
 ## Analysis-driven fork work
 
-This fork is also used to verify reverse-engineered behavior in the file loaders,
-course maps, and traffic AI. Investigation sessions and findings are recorded in
-the [`td3-analysis-docs` repository](https://github.com/Miragecoder/td3-analysis-docs/tree/master/sessions);
-implementation changes in this fork are driven by those sessions and validated
-against the game source and available course data.
+This fork is used to verify reverse-engineered behavior in the file loaders,
+course maps, and traffic AI alongside the course-data analysis. Changes are
+driven by timestamped sessions documented in the
+[`td3-analysis-docs` repository](https://github.com/Miragecoder/td3-analysis-docs/tree/master/sessions),
+with supporting source-level evidence recorded in the engine documentation.
 
 ## Features
 
