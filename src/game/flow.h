@@ -13,7 +13,7 @@ void pal_load(u16 name_ds);
 /* 0000:0ee0 file_load_far — game_flow.md §4.3 (whole file / archive entry into dst; DS:E86A = bytes read, DS:E86C = 0) */
 void file_load_far(u16 name_ds, FarPtr dst);
 /* 0000:0f58 random — game_flow.md §4.4 (seed DS:00D2 = seed*41C64E6Dh + 3039h; returns (seed >> 16) & 7FFFh) */
-u16 random(void);
+u16 td3_random(void);
 /* 0000:0f80 key_poll — game_flow.md §4.4 (key from DS:915B or the joystick, hotkeys, DS:E08C; host pointer,
  * e.g. key_poll(&DSW(0x90DA)) from dissolve_poll) */
 void key_poll(u16 *key);
