@@ -184,7 +184,7 @@ void SaveLook(const Look& look) {
 
 }  // namespace
 
-LauncherFrame::LauncherFrame()
+LauncherFrame::LauncherFrame(const wxString& gameDirArg)
     : wxFrame(nullptr, wxID_ANY, APP_TITLE, wxDefaultPosition, wxDefaultSize,
               wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX)) {
     SetIcons(AppIcons());
@@ -204,8 +204,8 @@ LauncherFrame::LauncherFrame()
     SetSizer(all);
     CreateMenus();
 
-    // Settings from the last run.
-    wxString dir = settings::GetString(SECTION, "GameFolder", "");
+    // Settings from the last run (command-line --game-dir takes precedence when given).
+    wxString dir = gameDirArg.empty() ? settings::GetString(SECTION, "GameFolder", "") : gameDirArg;
     wxString program = settings::GetString(SECTION, "Program", "");
     folder_->ChangeValue(dir.empty() ? DefaultGameDir() : dir);
     program_->ChangeValue(program.empty() ? DefaultProgram() : program);
@@ -660,7 +660,11 @@ void LauncherFrame::Play() {
     Save();
     GameOptions options;
     options.program = wxFileName(program_->GetValue()).GetFullPath();
-    options.gameDir = wxFileName(folder_->GetValue()).GetFullPath();
+    {
+        wxFileName gameDir = wxFileName::DirName(folder_->GetValue());
+        gameDir.MakeAbsolute();
+        options.gameDir = gameDir.GetFullPath();
+    }
     options.car = carCode_;
     options.course = courseCode_;
     options.skill = skill_->GetSelection();

@@ -39,7 +39,7 @@ struct Look {
 
 class LauncherFrame : public wxFrame {
 public:
-    LauncherFrame();
+    explicit LauncherFrame(const wxString& gameDirArg = wxString());
 
 private:
     wxWindow* CreateMainPage(wxWindow* parent);
