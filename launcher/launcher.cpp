@@ -220,6 +220,7 @@ LauncherFrame::LauncherFrame(const wxString& gameDirArg)
         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
     finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
+    randomRivals_->SetValue(settings::GetInt(SECTION, "RandomRivals", 1) != 0);
     ShowLook(look_);
     ShowEditedKeys();
     loading_ = false;
@@ -321,6 +322,11 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
     finishMarker_->SetToolTip("A green mark on the compass points to the gas station at the end of the leg "
                               "(an arrow at the compass's edge when it lies further to the side).");
     optionsBox->Add(finishMarker_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
+    randomRivals_ = new wxCheckBox(ob, wxID_ANY, "Random rival &cars");
+    randomRivals_->SetToolTip("The two computer cars drive a different pair of cars from the play disk on each "
+                              "course, including the two expansion cars. Off: the original's selection from the "
+                              "three-car game. The choice stays the same through all legs of a course.");
+    optionsBox->Add(randomRivals_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
     // Graphics: a summary and the way to the page
     auto* lookBox = new wxStaticBoxSizer(wxVERTICAL, page, "Graphics");
@@ -673,6 +679,7 @@ void LauncherFrame::Play() {
     options.scale = scale_->GetSelection() + MIN_SCALE;
     options.fullscreen = fullscreen_->GetValue();
     options.finishMarker = finishMarker_->GetValue();
+    options.randomRivals = randomRivals_->GetValue();
     options.classic = look_.classic;
     options.resScale = look_.resScale;
     options.aa = look_.aa;
@@ -704,6 +711,7 @@ void LauncherFrame::Save() {
     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "RandomRivals", randomRivals_->GetValue() ? 1 : 0);
     SaveLook(look_);
     settings::SaveWindowPosition(SECTION, this);
 }

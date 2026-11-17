@@ -1,0 +1,371 @@
+From 3c3b65092dd071ff689c79d0cb3a4f284a1ccfab Mon Sep 17 00:00:00 2001
+From: Rob Wijkstra <rob.wijkstra@gmail.com>
+Date: Tue, 17 Nov 2026 16:21:34 +0100
+Subject: [PATCH] experimental-randomcars
+
+---
+ CHANGELOG.md          |  6 ++++
+ ENHANCED.md           | 17 +++++++++++
+ README.md             |  3 ++
+ launcher/README.md    |  3 ++
+ launcher/game.cpp     |  1 +
+ launcher/game.h       |  1 +
+ launcher/launcher.cpp |  8 ++++++
+ launcher/launcher.h   |  1 +
+ src/game/flow.c       |  1 +
+ src/game/flow.h       |  1 +
+ src/game/flow_race.c  | 66 ++++++++++++++++++++++++++++++++++---------
+ src/main.c            |  9 ++++--
+ src/portcfg.c         |  2 +-
+ src/portcfg.h         |  2 ++
+ 14 files changed, 105 insertions(+), 16 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0630ddf..5a66c2a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog
+ 
++## Unreleased
++
++- The two computer opponents now drive a random selection of the other cars on the play disk, including the
++  expansion cars; the same two cars race all legs of a course. On by default, with a launcher checkbox and
++  `--random-rivals 0` to keep the original's behaviour.
++
+ ## 0.2.0
+ 
+ - Distance fog per pixel: the scenery sinks gradually into the fog instead of face by face; stronger by default (70 %).
+diff --git a/ENHANCED.md b/ENHANCED.md
+index eb8a159..7542aaf 100644
+--- a/ENHANCED.md
++++ b/ENHANCED.md
+@@ -344,6 +344,22 @@ the letter of that direction; outside it an arrow at the window's left or right
+ when the mark moves. The compass letters are the game's per leg (`leg_compass_offset`: they read N while
+ leg A of SCENE01 heads east); the mark follows the map.
+ 
++## Opponent cars
++
++`ENH:` the original picks the rivals from the player's car slot on every leg (`stage_load_objects`:
++`player ^ 1`, or slots 0/1/2), so the two expansion cars (Acura NSX, Stealth R/T Turbo) are never driven by the
++computer. `race_opponents_pick()` (`flow_race.c`) now draws two different car slots from all those installed on
++the play disk except the player's, once when the course starts (`game_main`). The slots live in
++`DS_opp1_slot` / `DS_opp2_slot`, which every leg's `stage_load_objects()` uses to load the rivals' `.LST` name
++and `.POB` model; the choice therefore stays the same through all five legs, a restart, and the results. When
++only two cars are installed the opponents still share the one other car, as in the original. The cars' model
++IDs in the map (2 and 3) do not change, so the opponents keep their own route scripts and driving.
++
++The draw is on by default; `portcfg.random_rivals` (`--random-rivals 0`, or the launcher's Random rival cars
++checkbox) restores the original's three-car selection instead. That branch computes the same slots
++`stage_load_objects()` used to recompute on every leg; with a fixed player car during a course the result is
++identical. The option is independent of `--classic`.
++
+ ## Police
+ 
+ `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
+@@ -378,6 +394,7 @@ the display rate (VSync).
+ | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
+ | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
+ | `--draw-distance N` | 7 | map cells drawn around the camera (0..7; 0 = the game's own cells) |
++| `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
+ | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
+ 
+ ## Developer aids
+diff --git a/README.md b/README.md
+index a5f54ab..fd0a089 100644
+--- a/README.md
++++ b/README.md
+@@ -19,6 +19,8 @@ with supporting source-level evidence recorded in the engine documentation.
+ * Smooth steering; spins, slides and the handbrake as in the original.
+ * Truer game speed; the race clock counts real seconds.
+ * Finish marker on the compass.
++* Random rival cars: the two computer opponents drive cars drawn from the four other cars, for the whole course
++  (on by default; switchable in the launcher or with `--random-rivals 0` for the original's behaviour).
+ * Fixes to police, landings and other original quirks (see `CHANGELOG.md`).
+ * A launcher for car, course, skill and picture options.
+ 
+@@ -82,6 +84,7 @@ cmake --build build
+ | `--enh-lights 0\|1` | Enhanced headlight beams (default 1; 0 = the original's) |
+ | `--keys NAME=CODE,...` | Key bindings (the launcher's Game settings > Key Bindings) |
+ | `--finish-marker 0\|1` | Finish marker on the compass (default 1) |
++| `--random-rivals 0\|1` | Random cars for the two opponents (default 1; 0 = the original's selection) |
+ | `--frame-ticks N` | Game speed, timer ticks per frame (default 14) |
+ | `--classic` | Original picture only |
+ | `--sound adlib\|speaker` | Sound device |
+diff --git a/launcher/README.md b/launcher/README.md
+index baa6262..33f6149 100644
+--- a/launcher/README.md
++++ b/launcher/README.md
+@@ -28,6 +28,9 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
+   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
+   * **Finish direction on the compass** (`--finish-marker`, on by default): a green mark on the compass points
+     to the leg's gas station. Stored as `FinishMarker` in `settings.ini`.
++  * **Random rival cars** (`--random-rivals`, on by default): the two computer opponents drive a pair of cars
++    drawn from the other cars on the play disk, including the expansion cars, and keep them for the whole course.
++    Off: the original's selection from the three-car game. Stored as `RandomRivals` in `settings.ini`.
+ * **Graphics**: a summary of the picture settings and the **Graphics** button (as Game settings > Graphics).
+ * **Play** starts the game; the launcher stays open.
+ 
+diff --git a/launcher/game.cpp b/launcher/game.cpp
+index 73c1f0f..3d3dc36 100644
+--- a/launcher/game.cpp
++++ b/launcher/game.cpp
+@@ -102,6 +102,7 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
+                                "--sound", o.speaker ? "speaker" : "adlib"};
+     if (o.fullscreen) args.push_back("--fullscreen");
+     args.insert(args.end(), {"--finish-marker", o.finishMarker ? "1" : "0"});
++    args.insert(args.end(), {"--random-rivals", o.randomRivals ? "1" : "0"});
+     args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
+     if (o.classic) args.push_back("--classic");
+     else args.insert(args.end(), {"--aa", wxString::Format("%d", o.aa),
+diff --git a/launcher/game.h b/launcher/game.h
+index 721cc1b..19a12be 100644
+--- a/launcher/game.h
++++ b/launcher/game.h
+@@ -49,6 +49,7 @@ struct GameOptions {
+     int scale = 3;          // --scale: the window is 320x240 times this
+     bool fullscreen = false;  // --fullscreen
+     bool finishMarker = true; // --finish-marker: the finish's direction on the compass
++    bool randomRivals = true; // --random-rivals: the opponents drive cars drawn from the other cars
+     bool classic = false;   // --classic: the original picture instead of the enhanced view
+     int resScale = 4;       // --res-scale: the picture is 320x200 times this
+     int aa = 2;             // --aa: anti-aliasing, aa x aa samples a pixel (1 = off)
+diff --git a/launcher/launcher.cpp b/launcher/launcher.cpp
+index f043aeb..394d89d 100644
+--- a/launcher/launcher.cpp
++++ b/launcher/launcher.cpp
+@@ -220,6 +220,7 @@ LauncherFrame::LauncherFrame(const wxString& gameDirArg)
+         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
+     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
+     finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
++    randomRivals_->SetValue(settings::GetInt(SECTION, "RandomRivals", 1) != 0);
+     ShowLook(look_);
+     ShowEditedKeys();
+     loading_ = false;
+@@ -321,6 +322,11 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
+     finishMarker_->SetToolTip("A green mark on the compass points to the gas station at the end of the leg "
+                               "(an arrow at the compass's edge when it lies further to the side).");
+     optionsBox->Add(finishMarker_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
++    randomRivals_ = new wxCheckBox(ob, wxID_ANY, "Random rival &cars");
++    randomRivals_->SetToolTip("The two computer cars drive a different pair of cars from the play disk on each "
++                              "course, including the two expansion cars. Off: the original's selection from the "
++                              "three-car game. The choice stays the same through all legs of a course.");
++    optionsBox->Add(randomRivals_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
+ 
+     // Graphics: a summary and the way to the page
+     auto* lookBox = new wxStaticBoxSizer(wxVERTICAL, page, "Graphics");
+@@ -673,6 +679,7 @@ void LauncherFrame::Play() {
+     options.scale = scale_->GetSelection() + MIN_SCALE;
+     options.fullscreen = fullscreen_->GetValue();
+     options.finishMarker = finishMarker_->GetValue();
++    options.randomRivals = randomRivals_->GetValue();
+     options.classic = look_.classic;
+     options.resScale = look_.resScale;
+     options.aa = look_.aa;
+@@ -704,6 +711,7 @@ void LauncherFrame::Save() {
+     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
+     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
+     settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
++    settings::SetInt(SECTION, "RandomRivals", randomRivals_->GetValue() ? 1 : 0);
+     SaveLook(look_);
+     settings::SaveWindowPosition(SECTION, this);
+ }
+diff --git a/launcher/launcher.h b/launcher/launcher.h
+index fffd9a2..d2a8a20 100644
+--- a/launcher/launcher.h
++++ b/launcher/launcher.h
+@@ -89,6 +89,7 @@ private:
+     wxChoice* scale_ = nullptr;
+     wxCheckBox* fullscreen_ = nullptr;
+     wxCheckBox* finishMarker_ = nullptr;
++    wxCheckBox* randomRivals_ = nullptr;
+     wxStaticText* lookNote_ = nullptr;  // the main page's summary of the graphics
+     wxButton* play_ = nullptr;
+ 
+diff --git a/src/game/flow.c b/src/game/flow.c
+index fad1b6e..1ad0d15 100644
+--- a/src/game/flow.c
++++ b/src/game/flow.c
+@@ -94,6 +94,7 @@ int game_main(void)
+         case 5: {
+             /* ---- §4.1.1: legs x players and the results arithmetic (inline in main) ---- */
+             playdisk_verify();
++            race_opponents_pick();                          /* ENH: two random rivals, fixed for all legs */
+             DSB(DS_leg_index) = 0;
+             {   /* ENH developer aid: TD3_START_LEG=n starts the race at leg n (0-based) */
+                 const char *e = SDL_getenv("TD3_START_LEG");
+diff --git a/src/game/flow.h b/src/game/flow.h
+index 94a86a7..ac21ee6 100644
+--- a/src/game/flow.h
++++ b/src/game/flow.h
+@@ -118,6 +118,7 @@ void opponent_results(void);                      /* 01f4:55f0 — §4.16 */
+ 
+ /* ---- flow_race.c: one leg ---- */
+ void race_run(void);                              /* 0792:000c — §4.13 */
++void race_opponents_pick(void);                   /* ENH: pick the two rival cars for a course */
+ void car_leg_reset(void);                         /* 0792:083c — §4.14 */
+ void stage_load_objects(void);                    /* 0792:0d2e — §4.14 */
+ void leg_map_load(void);                          /* 0792:0fce — §4.14 */
+diff --git a/src/game/flow_race.c b/src/game/flow_race.c
+index 748c22b..bb1d689 100644
+--- a/src/game/flow_race.c
++++ b/src/game/flow_race.c
+@@ -2,6 +2,7 @@
+  * frame pacing), the car reset at a leg (re)start and the stage / leg map loaders. Segment 0792. */
+ #include "game/game.h"
+ #include "enhanced/enhanced.h"
++#include "portcfg.h"
+ 
+ #include <SDL3/SDL.h>
+ 
+@@ -218,6 +219,56 @@ void car_leg_reset(void)
+     mouse_set_pos(0xa0, 100);
+ }
+ 
++/* ENH: choose the computer cars for the whole course. The original derived both opponents from the
++ * player's slot on every leg (DS_opp*_slot = player ^ 1, or slots 0/1/2), so the three-car game never
++ * used the two expansion cars against you. Here the slots are drawn once from the other cars on the
++ * play disk and kept in DS_opp1_slot / DS_opp2_slot; stage_load_objects() reloads those slots on each
++ * leg, so a leg change (or a restart within a leg) keeps the same two rivals. */
++void race_opponents_pick(void)
++{
++    u8 others[14];                                     /* DS_car_slots holds at most 14 cars */
++    u8 n = 0;
++    u8 player = (u8)DSW(DS_car_index);
++    u8 installed = DSB(DS_cars_on_disk);
++
++    if (!portcfg.random_rivals) {
++        /* ENH option off: the original's three-car selection, made here once for the whole course.
++         * DSW(DS_car_index) cannot change while a course runs, so this is the same on every leg. */
++        DSB(DS_opp1_slot) = 0;
++        DSB(DS_opp2_slot) = 0;
++        if (installed > 1) {
++            if (installed == 2) {
++                DSB(DS_opp1_slot) = (u8)(player ^ 1);
++                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
++            } else {
++                DSB(DS_opp1_slot) = 0;
++                DSB(DS_opp2_slot) = 1;
++                if (player == 0) DSB(DS_opp1_slot) = 2;
++                if (player == 1) DSB(DS_opp2_slot) = 2;
++            }
++        }
++        return;
++    }
++    if (DSB(DS_protection_ok) == 0 || DSB(DS_race_computer_cars) == 0) {
++        DSB(DS_opp1_slot) = 0;
++        DSB(DS_opp2_slot) = 0;
++        return;
++    }
++    if (installed > 14) installed = 14;
++    for (u8 slot = 0; slot < installed; slot++) {
++        if (slot != player && DSB((u16)(slot * 6 + DS_car_slots)) == 'C') others[n++] = slot;
++    }
++    if (n == 0) {                                      /* no other car installed: keep the player's */
++        DSB(DS_opp1_slot) = player;
++        DSB(DS_opp2_slot) = player;
++        return;
++    }
++    u8 first = (u8)(td3_random() % n);
++    DSB(DS_opp1_slot) = others[first];
++    others[first] = others[--n];                       /* do not give both rivals the same car */
++    DSB(DS_opp2_slot) = (n == 0) ? DSB(DS_opp1_slot) : others[td3_random() % n];
++}
++
+ /* 0792:0d2e stage_load_objects — game_flow.md §4.14 (leg sprites, map, tiles, object sets, car and opponents) */
+ void stage_load_objects(void)
+ {
+@@ -254,21 +305,10 @@ void stage_load_objects(void)
+     }
+     flow_strcpy(DS_path_car + 7, 0x11C5);                      /* ".POB" */
+     file_load_far(DS_path_car, ds_far(DS_car_pob));
+-    DSB(DS_opp2_slot) = 0;
+-    DSB(DS_opp1_slot) = 0;
++    /* ENH: the slots were picked once for the course by race_opponents_pick(); the original recomputed
++     * them from DS_car_index here on every leg, which confined the rivals to the three original cars. */
+     if (DSB(DS_protection_ok) != 0 && DSB(DS_race_computer_cars) != 0 && DSB(DS_menu_preview) == 0) {
+         u16 f;
+-        if (DSB(DS_cars_on_disk) > 1) {
+-            if (DSB(DS_cars_on_disk) == 2) {
+-                DSB(DS_opp1_slot) = (u8)(DSB(DS_car_index) ^ 1);
+-                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
+-            } else {
+-                DSB(DS_opp1_slot) = 0;
+-                DSB(DS_opp2_slot) = 1;
+-                if (DSW(DS_car_index) == 0) DSB(DS_opp1_slot) = 2;
+-                if (DSW(DS_car_index) == 1) DSB(DS_opp2_slot) = 2;
+-            }
+-        }
+         flow_strcpy(DS_path_opponent + 2, (u16)(DSB(DS_opp1_slot) * 6 + DS_car_slots));
+         flow_strcpy(DS_path_opponent + 7, 0x11CA);             /* ".LST" */
+         f = crt_fopen(DS_path_opponent, 0x11CF);               /* "rb" */
+diff --git a/src/main.c b/src/main.c
+index c48d299..96ec35f 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -3,7 +3,8 @@
+  * usage: testdrive3-enhanced [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]
+  *                [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]
+  *                [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]
+- *                [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1] [--classic] [--check]
++ *                [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1]
++ *                [--random-rivals 0|1] [--classic] [--check]
+  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
+  *   --scale       initial window scale: 320x240 times N (default 3)
+  *   --fullscreen  start in full screen (Alt+Enter switches)
+@@ -29,6 +30,8 @@
+  *   --keys        ENH: key bindings, "name=code,..." for the actions not on their default keys (the launcher's
+  *                 Game settings > Key Bindings; enhanced/enh_keys.c), applied while a race runs
+  *   --finish-marker ENH: the direction of the leg's finish (the gas station) on the compass (default 1; 0 = off)
++ *   --random-rivals ENH: the two computer cars are drawn from the other cars on the play disk (default 1;
++ *                 0 = the original's selection from the three-car game, for all legs of the course)
+  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
+  *   --check       load and verify the original executable, print a summary and exit (no window)
+  */
+@@ -52,7 +55,8 @@ static int usage(const char *prog)
+             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]\n"
+             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
+             "          [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]\n"
+-            "          [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1] [--classic] [--check]\n", prog);
++            "          [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1]\n"
++            "          [--random-rivals 0|1] [--classic] [--check]\n", prog);
+     return 2;
+ }
+ 
+@@ -96,6 +100,7 @@ int main(int argc, char **argv)
+             i++;
+         }
+         else if (!strcmp(a, "--finish-marker") && v) { portcfg.finish_marker = atoi(v) != 0; i++; }
++        else if (!strcmp(a, "--random-rivals") && v) { portcfg.random_rivals = atoi(v) != 0; i++; }
+         else if (!strcmp(a, "--classic")) classic = true;
+         else if (!strcmp(a, "--check")) check = true;
+         else return usage(argv[0]);
+diff --git a/src/portcfg.c b/src/portcfg.c
+index d144bf0..5354f37 100644
+--- a/src/portcfg.c
++++ b/src/portcfg.c
+@@ -5,7 +5,7 @@
+ #include "mem.h"
+ #include "symbols.h"
+ 
+-PortConfig portcfg = { "", "", 0, -1, true };
++PortConfig portcfg = { "", "", 0, -1, true, true };
+ 
+ void portcfg_apply_config(void)
+ {
+diff --git a/src/portcfg.h b/src/portcfg.h
+index 1caeeaf..22e07e4 100644
+--- a/src/portcfg.h
++++ b/src/portcfg.h
+@@ -10,6 +10,8 @@ typedef struct {
+     int skill;          /* --skill 1..9 as shown in the game (1-3 automatic gearbox); 0 = PLAYDISK.DAT's */
+     int sound;          /* --sound adlib|speaker -> TD3.CFG audio 4 / 0; -1 = TD3.CFG's */
+     bool finish_marker; /* ENH --finish-marker 0|1: the finish's direction on the compass (default on) */
++    bool random_rivals; /* ENH --random-rivals 0|1: random cars for the computer opponents (default on);
++                         * 0 = the original's selection from the three-car game */
+ } PortConfig;
+ 
+ extern PortConfig portcfg;
+-- 
+2.43.0
+

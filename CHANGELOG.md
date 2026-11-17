@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The two computer opponents now drive a random selection of the other cars on the play disk, including the
+  expansion cars; the same two cars race all legs of a course. On by default, with a launcher checkbox and
+  `--random-rivals 0` to keep the original's behaviour.
+
 ## 0.2.0
 
 - Distance fog per pixel: the scenery sinks gradually into the fog instead of face by face; stronger by default (70 %).
