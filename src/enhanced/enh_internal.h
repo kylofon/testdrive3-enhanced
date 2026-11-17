@@ -12,23 +12,25 @@
 #define ENH_MAX_SPRITES_ALL (ENH_MAX_SPRITES + 8192)   /* and the far ones (enh_far.c) */
 #define ENH_MAX_OVPIX   8192           /* overlay pixels of one frame */
 #define ENH_MAX_OVCMD   64
-#define ENH_MAX_FAR_VERTS 32768        /* the far ring (enh_far.c) */
-#define ENH_MAX_FAR_FACES 32768
+#define ENH_MAX_FAR_VERTS 65536        /* the far ring (enh_far.c) */
+#define ENH_MAX_FAR_FACES 65536
 #define ENH_MAX_ALL_VERTS (ENH_MAX_VERTS + ENH_MAX_FAR_VERTS)
 
 /* ---- snapshots (enhanced.c) ---- */
 
 typedef struct {
-    u16 x, z, y8, heading;             /* obj_x / obj_z / obj_y8 / obj_heading */
+    u16 x, z, y8, heading;             /* obj_x / obj_z / obj_y8 / obj_heading, as the game keeps them */
     u16 flags;
-    u16 vbase, vcount;                 /* vertices emitted this frame (moving vehicles; 0 = none) */
+    u16 vbase, vcount;                 /* vertices emitted by the game this frame (moving vehicles; 0 = none) */
+    u16 far_base, far_count;           /* vertices emitted into the far ring (enh_far.c; 0 = none) */
+    int far_x, far_z;                  /* the wrapped image of x/z used by those far-ring vertices */
     u16 rbase, rcount;                 /* obj_vert_base / obj_vert_count as they are (lamp owners) */
 } EnhObj;
 
 typedef struct {
     u16 inst;                          /* sprite instance index */
     u16 id;                            /* sprite_id word (low byte: class/number, high: flags/countdown) */
-    s16 x, y, z;
+    int x, y, z;                       /* position units; far-ring sprites use the image nearest the camera */
 } EnhSpr;
 
 /* A face of the far ring: the flag bits of the game's record words w0 (count, farthest flag, size) and w3 (type),
@@ -61,7 +63,8 @@ typedef struct {
     bool ext_view, menu_preview;
     bool day;                          /* DS:95C7 colour mode: OR faces of pair 0707h are hidden by day */
     /* camera */
-    u16  cam_x4, cam_z4, heading;
+    u16  cam_x, cam_z;                 /* position units, unwrapped: the origin of the far ring's offsets */
+    u16  cam_x4, cam_z4, heading;      /* x4, wrapped in 16 bits, as the game keeps it */
     s16  cam_y, cam_row, pitch;        /* cam_row = pitch + horizon base (9496); pitch = car pitch 948F */
     s8   roll;                         /* DS:94A0 roll code */
     /* sky / ground */
@@ -93,7 +96,10 @@ typedef struct {
     u8   vbuf[0x7800];
     /* the far ring (enh_far.c): cells beyond the game's own, vertices numbered on from nv, faces farthest first */
     int  nfv, nff;
-    s16  fvx[ENH_MAX_FAR_VERTS], fvy[ENH_MAX_FAR_VERTS], fvz[ENH_MAX_FAR_VERTS];
+    /* the far ring's x4 offsets from the snapshot camera, in 32 bits: signed 16-bit deltas wrap 8 cells from
+     * the camera, which is what capped the old ring at 7. Heights stay 16 bits. */
+    int  fvx[ENH_MAX_FAR_VERTS], fvz[ENH_MAX_FAR_VERTS];
+    s16  fvy[ENH_MAX_FAR_VERTS];
     EnhFarFace ff[ENH_MAX_FAR_FACES];
 } EnhSnap;
 

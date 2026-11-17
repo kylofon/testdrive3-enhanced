@@ -75,11 +75,12 @@ cmake --build build
 | `--aa N` | Anti-aliasing, N×N samples (default 2, 1 = off) |
 | `--motion-delay P` | Smooth view delay, % of a game frame (default 100) |
 | `--haze P` | Distance fog, % of the sky colour at the edge of the view (default 70, 0 = off) |
-| `--draw-distance N` | Map cells drawn around the camera (default 7, 0 = original) |
+| `--draw-distance N` | Map cells drawn around the camera, with their scenery, trees and cars (default 18 — the whole wrapping leg map, 0–18, 0 = original) |
 | `--fog-start P` | Where the fog begins, % of the way to where it is full (default 10) |
 | `--beam-night P`, `--beam-day P` | Headlight beams' strength at night / by day, % (default 100 / 35) |
 | `--beam-soft N` | Headlight beams' soft edge, pixels (default 3, 0 = hard) |
 | `--enh-lights 0\|1` | Enhanced headlight beams (default 1; 0 = the original's) |
+| `--far-lod 0\|1` | Reduced far models for vehicles and some buildings at distance (default 0 = full detail; 1 = the original's) |
 | `--keys NAME=CODE,...` | Key bindings (the launcher's Game settings > Key Bindings) |
 | `--finish-marker 0\|1` | Finish marker on the compass (default 1) |
 | `--frame-ticks N` | Game speed, timer ticks per frame (default 14) |
