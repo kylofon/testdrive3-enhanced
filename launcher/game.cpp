@@ -108,6 +108,7 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                   "--motion-delay", wxString::Format("%d", o.motionDelay),
                                   "--haze", wxString::Format("%d", o.haze),
                                   "--draw-distance", wxString::Format("%d", o.drawDistance),
+                                  "--far-lod", o.farLod ? "1" : "0",
                                   "--fog-start", wxString::Format("%d", o.fogStart),
                                   "--enh-lights", o.enhLights ? "1" : "0",
                                   "--beam-night", wxString::Format("%d", o.beamNight),
