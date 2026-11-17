@@ -3,7 +3,8 @@
  * usage: testdrive3-enhanced [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]
  *                [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]
  *                [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]
- *                [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1] [--classic] [--check]
+ *                [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1]
+ *                [--random-rivals 0|1] [--classic] [--check]
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
@@ -29,6 +30,8 @@
  *   --keys        ENH: key bindings, "name=code,..." for the actions not on their default keys (the launcher's
  *                 Game settings > Key Bindings; enhanced/enh_keys.c), applied while a race runs
  *   --finish-marker ENH: the direction of the leg's finish (the gas station) on the compass (default 1; 0 = off)
+ *   --random-rivals ENH: the two computer cars are drawn from the other cars on the play disk (default 1;
+ *                 0 = the original's selection from the three-car game, for all legs of the course)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)
  */
@@ -53,7 +56,7 @@ static int usage(const char *prog)
             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
             "          [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]\n"
             "          [--beam-soft N] [--enh-lights 0|1] [--far-lod 0|1] [--keys NAME=CODE,...]\n"
-            "          [--finish-marker 0|1] [--classic] [--check]\n", prog);
+            "          [--random-rivals 0|1] [--finish-marker 0|1] [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -98,6 +101,7 @@ int main(int argc, char **argv)
             i++;
         }
         else if (!strcmp(a, "--finish-marker") && v) { portcfg.finish_marker = atoi(v) != 0; i++; }
+        else if (!strcmp(a, "--random-rivals") && v) { portcfg.random_rivals = atoi(v) != 0; i++; }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
         else return usage(argv[0]);

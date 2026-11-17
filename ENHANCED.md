@@ -354,6 +354,22 @@ the letter of that direction; outside it an arrow at the window's left or right 
 when the mark moves. The compass letters are the game's per leg (`leg_compass_offset`: they read N while
 leg A of SCENE01 heads east); the mark follows the map.
 
+## Opponent cars
+
+`ENH:` the original picks the rivals from the player's car slot on every leg (`stage_load_objects`:
+`player ^ 1`, or slots 0/1/2), so the two expansion cars (Acura NSX, Stealth R/T Turbo) are never driven by the
+computer. `race_opponents_pick()` (`flow_race.c`) now draws two different car slots from all those installed on
+the play disk except the player's, once when the course starts (`game_main`). The slots live in
+`DS_opp1_slot` / `DS_opp2_slot`, which every leg's `stage_load_objects()` uses to load the rivals' `.LST` name
+and `.POB` model; the choice therefore stays the same through all five legs, a restart, and the results. When
+only two cars are installed the opponents still share the one other car, as in the original. The cars' model
+IDs in the map (2 and 3) do not change, so the opponents keep their own route scripts and driving.
+
+The draw is on by default; `portcfg.random_rivals` (`--random-rivals 0`, or the launcher's Random rival cars
+checkbox) restores the original's three-car selection instead. That branch computes the same slots
+`stage_load_objects()` used to recompute on every leg; with a fixed player car during a course the result is
+identical. The option is independent of `--classic`.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
@@ -388,6 +404,7 @@ the display rate (VSync).
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
 | `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
+| `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
 | `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 

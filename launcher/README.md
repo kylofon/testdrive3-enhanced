@@ -28,6 +28,9 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
   * **Finish direction on the compass** (`--finish-marker`, on by default): a green mark on the compass points
     to the leg's gas station. Stored as `FinishMarker` in `settings.ini`.
+  * **Random rival cars** (`--random-rivals`, on by default): the two computer opponents drive a pair of cars
+    drawn from the other cars on the play disk, including the expansion cars, and keep them for the whole course.
+    Off: the original's selection from the three-car game. Stored as `RandomRivals` in `settings.ini`.
 * **Graphics**: a summary of the picture settings and the **Graphics** button (as Game settings > Graphics).
 * **Play** starts the game; the launcher stays open.
 
