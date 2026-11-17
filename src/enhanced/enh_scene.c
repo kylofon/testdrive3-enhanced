@@ -23,6 +23,7 @@ static double CX32;                              /* view centre, 1/32 px (DS:BA9
 static double VROWS;                             /* view rows */
 
 static int NV;                                   /* vertices: the game's, then the far ring's */
+static double cam_abs_x, cam_abs_z;              /* the smooth camera in unwrapped x4 units (sprite distances) */
 static double sx[ENH_MAX_ALL_VERTS];             /* bearing on screen, [0, 65536) (sx[] of 394c) */
 static double vdist[ENH_MAX_ALL_VERTS];          /* horizontal distance (dist[]) */
 static double fy[ENH_MAX_ALL_VERTS];             /* front row (sy[] of 39fd) */
@@ -45,6 +46,10 @@ static inline double wraps(double a)             /* to [-32768, 32768) */
 }
 static inline bool NEG(double v) { return wrapu(v) >= 32768.0; }   /* sign of a 16-bit result */
 
+/* relative to the smooth camera: the game's 16-bit vertices wrap, the far ring's 32-bit offsets do not */
+static inline double vx_rel(int v) { return v >= S->nv ? V->vx[v] - V->cam_x4 : wraps(V->vx[v] - V->cam_x4); }
+static inline double vz_rel(int v) { return v >= S->nv ? V->vz[v] - V->cam_z4 : wraps(V->vz[v] - V->cam_z4); }
+
 /* elevation of a height difference over a distance in pixels (the 1AFA table: rows up for dy > 0) */
 static inline double elev(double dy, double dist) { return atan2(dy, dist < 1e-3 ? 1e-3 : dist) * RAD2PX; }
 
@@ -56,7 +61,7 @@ static void project(void)
 {
     double base = (double)(S->cx_hi << 8) - V->heading;
     for (int v = 0; v < NV; v++) {
-        double dx = wraps(V->vx[v] - V->cam_x4), dz = wraps(V->vz[v] - V->cam_z4);
+        double dx = vx_rel(v), dz = vz_rel(v);
         double d = sqrt(dx * dx + dz * dz);
         sx[v] = wrapu(atan2(dx, dz) * RAD2A + base);
         vdist[v] = d;
@@ -306,7 +311,7 @@ static double plane_height(const int *v)
     double wx = wraps(V->vx[v[2]] - ax), wy = V->vy[v[2]] - ay, wz = wraps(V->vz[v[2]] - az);
     double nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
     if (fabs(ny) < 1e-6) return fmax(ay, fmax(V->vy[v[1]], V->vy[v[2]]));
-    double cx = wraps(V->cam_x4 - ax), cz = wraps(V->cam_z4 - az);
+    double cx = -vx_rel(v[0]), cz = -vz_rel(v[0]);
     return ay - (nx * cx + nz * cz) / ny;
 }
 
@@ -477,9 +482,9 @@ static void draw_face_rec(u16 w0, u16 w3, u16 pair, int v0, int v1, int v2, int 
         bool ok = true;
         for (int k = 0; k < m; k++) {
             if (vs[k] >= NV) { ok = false; break; }
-            p[k][0] = wraps(V->vx[vs[k]] - V->cam_x4);
+            p[k][0] = vx_rel(vs[k]);
             p[k][1] = V->vy[vs[k]] - V->cam_y;
-            p[k][2] = wraps(V->vz[vs[k]] - V->cam_z4);
+            p[k][2] = vz_rel(vs[k]);
         }
         z_mode = Z_NONE;
         if (ok && m >= 3) {
@@ -706,6 +711,8 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
 {
     S = s;
     V = v;
+    cam_abs_x = (double)((int)s->cam_x * 4) + wraps(v->cam_x4 - s->cam_x4);
+    cam_abs_z = (double)((int)s->cam_z * 4) + wraps(v->cam_z4 - s->cam_z4);
     K = enh_scale * enh_aa;
     W32 = (double)s->w32m + 0x20;
     CX32 = W32 / 2;
@@ -735,7 +742,8 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     for (int k = 0; k < s->nspr; k++) {
         const EnhSpr *e = &s->spr[k];
         if ((u8)e->id == 0) continue;
-        double dx = wraps(4.0 * v->spr_x[k] - v->cam_x4), dz = wraps(4.0 * v->spr_z[k] - v->cam_z4);
+        /* sprites can now stand beyond 8 cells from the camera, where the 16-bit sign wrap would fold them */
+        double dx = 4.0 * v->spr_x[k] - cam_abs_x, dz = 4.0 * v->spr_z[k] - cam_abs_z;
         double d = sqrt(dx * dx + dz * dz);
         SprItem *it = &sprs[ns++];
         it->k = k;
