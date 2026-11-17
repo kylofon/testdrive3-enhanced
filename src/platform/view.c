@@ -89,7 +89,7 @@ void rect_restore(s16 x0, s16 x1, s16 y0, s16 y1)
  * modelled. */
 static void dissolve_poll(void)
 {
-    (void)random();
+    (void)td3_random();
     if (DSB(DS_skip_enabled) == 0) {
         DSB(DS_skip_flag) = 0;
         return;

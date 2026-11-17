@@ -126,7 +126,7 @@ void leg_state_reset(void)
 {
     u16 s;
     for (;;) {
-        s = random();
+        s = td3_random();
         u8 n = 0;
         for (u16 b = s; b; b = (u16)(b << 1)) if (b & 0x8000) n++;
         if (n >= 10 && n <= 12) break;

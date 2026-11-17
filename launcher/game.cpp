@@ -102,12 +102,14 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                "--sound", o.speaker ? "speaker" : "adlib"};
     if (o.fullscreen) args.push_back("--fullscreen");
     args.insert(args.end(), {"--finish-marker", o.finishMarker ? "1" : "0"});
+    args.insert(args.end(), {"--random-rivals", o.randomRivals ? "1" : "0"});
     args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
     if (o.classic) args.push_back("--classic");
     else args.insert(args.end(), {"--aa", wxString::Format("%d", o.aa),
                                   "--motion-delay", wxString::Format("%d", o.motionDelay),
                                   "--haze", wxString::Format("%d", o.haze),
                                   "--draw-distance", wxString::Format("%d", o.drawDistance),
+                                  "--far-lod", o.farLod ? "1" : "0",
                                   "--fog-start", wxString::Format("%d", o.fogStart),
                                   "--enh-lights", o.enhLights ? "1" : "0",
                                   "--beam-night", wxString::Format("%d", o.beamNight),

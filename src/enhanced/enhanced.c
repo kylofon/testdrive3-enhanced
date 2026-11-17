@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <SDL3/SDL.h>
@@ -15,6 +16,7 @@ int enh_haze = ENH_DEFAULT_HAZE;
 int enh_fog_start = ENH_DEFAULT_FOG_START, enh_beam_night = ENH_DEFAULT_BEAM_NIGHT;
 int enh_beam_day = ENH_DEFAULT_BEAM_DAY, enh_beam_soft = ENH_DEFAULT_BEAM_SOFT;
 bool enh_lights = true;
+static bool far_lod = false;
 static bool enabled = true;
 
 static EnhSnap snaps[2];
@@ -35,16 +37,18 @@ void enh_init(bool on, int res_scale, int aa, int motion_delay, int haze, int dr
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft)
+void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft, bool far_lod_)
 {
     enh_fog_start = clampi(fog_start, 0, 90);
     enh_lights = lights;                  /* off: the original's beams, ORed into the colours */
     enh_beam_night = clampi(beam_night, 0, 100);
     enh_beam_day = clampi(beam_day, 0, 100);
     enh_beam_soft = clampi(beam_soft, 0, ENH_MAX_BEAM_SOFT);
+    far_lod = far_lod_;                   /* on: the original's reduced far models, not the enhanced view's full ones */
 }
 
 bool enh_enabled(void) { return enabled; }
+bool enh_far_lod_enabled(void) { return far_lod; }
 int  enh_res_scale(void) { return enh_scale; }
 
 /* ------------------------------------------------------------------------------------------------------
@@ -130,6 +134,15 @@ void enh_ov_line(u16 p_bx, u16 q_si, u16 rec, u16 colour)
 
 static s16 d16(u16 a, u16 b) { return (s16)(u16)(a - b); }
 
+/* a - b of wrapped x4 coordinates, as a continuous signed value (the camera moves at most a fraction of a
+ * cell between snapshots, so this is the unwrapped part of its motion) */
+static double dwrap(double a, double b)
+{
+    double x = fmod(a - b, 65536.0);
+    if (x < 0.0) x += 65536.0;
+    return x >= 32768.0 ? x - 65536.0 : x;
+}
+
 /* front: rows added per 1/32 px of (x - centre) for a roll code (sar by |code|, negated for code > 0) */
 static double roll_slope(s8 r)
 {
@@ -189,6 +202,8 @@ void enh_frame_drawn(void)
     s->menu_preview = DSB(DS_menu_preview) != 0;
     s->day = DSB(DS_colour_mode) != 0;
 
+    s->cam_x = DSW(DS_cam_x);
+    s->cam_z = DSW(DS_cam_z);
     s->cam_x4 = DSW(DS_cam_x4);
     s->cam_z4 = DSW(DS_cam_z4);
     s->heading = DSW(DS_cam_heading);
@@ -428,22 +443,25 @@ static void view_compute(void)
     v->mroll_slope = out[7];
     v->roll = c->roll;
 
+    /* the far ring's offsets are from the snapshot camera; the smooth view needs them from the camera at the
+     * view time, which has moved by this much since the snapshot */
+    double dxc = dwrap(v->cam_x4, c->cam_x4), dzc = dwrap(v->cam_z4, c->cam_z4);
+
     for (int i = 0; i < c->nv; i++) {
         v->vx[i] = c->vx[i];
         v->vy[i] = c->vy[i];
         v->vz[i] = c->vz[i];
     }
-    for (int i = 0; i < c->nfv; i++) {                     /* the far ring: static */
-        v->vx[c->nv + i] = c->fvx[i];
+    for (int i = 0; i < c->nfv; i++) {                     /* the far ring: static, 32-bit offsets */
+        v->vx[c->nv + i] = (float)(v->cam_x4 + (double)c->fvx[i] - dxc);
         v->vy[c->nv + i] = c->fvy[i];
-        v->vz[c->nv + i] = c->fvz[i];
+        v->vz[c->nv + i] = (float)(v->cam_z4 + (double)c->fvz[i] - dzc);
     }
     /* moving vehicles: carried to the view time and turned to their exact heading (the model is built at
-     * the high byte of the heading) */
+     * the high byte of the heading). A car the game left out of its window was built into the far ring, and is
+     * carried by exactly the same motion, so handing over between the two is seamless. */
     for (int o = 0; o < c->nobj; o++) {
         const EnhObj *e = &c->obj[o];
-        v->obj_heading[o] = e->heading;
-        if (!e->vcount) continue;
         double dx = 0, dz = 0, dy = 0, dh = 0;
         if (pair_ok && o < p->nobj && (p->obj[o].flags & 0x2000)) {
             const EnhObj *q = &p->obj[o];
@@ -458,15 +476,31 @@ static void view_compute(void)
         }
         double h = e->heading + dh;
         v->obj_heading[o] = h;
+        if (!e->vcount && !e->far_count) continue;
         double rot = (h - (double)(e->heading & 0xFF00)) * (2.0 * M_PI / 65536.0);
         double cs = cos(rot), sn = sin(rot);
         double ox = (double)(u16)(e->x << 2), oz = (double)(u16)(e->z << 2);
-        for (int i = e->vbase; i < e->vbase + e->vcount; i++) {
-            double rx = (s16)(u16)(c->vx[i] - (u16)ox), rz = (s16)(u16)(c->vz[i] - (u16)oz);
-            double nx = rx * cs + rz * sn, nz = rz * cs - rx * sn;
-            v->vx[i] = (float)(ox + 4.0 * dx + nx);
-            v->vz[i] = (float)(oz + 4.0 * dz + nz);
-            v->vy[i] = (float)(c->vy[i] + dy);
+        if (e->vcount) {
+            for (int i = e->vbase; i < e->vbase + e->vcount; i++) {
+                double rx = (s16)(u16)(c->vx[i] - (u16)ox), rz = (s16)(u16)(c->vz[i] - (u16)oz);
+                double nx = rx * cs + rz * sn, nz = rz * cs - rx * sn;
+                v->vx[i] = (float)(ox + 4.0 * dx + nx);
+                v->vz[i] = (float)(oz + 4.0 * dz + nz);
+                v->vy[i] = (float)(c->vy[i] + dy);
+            }
+        }
+        if (e->far_count) {
+            int b = e->far_base, g = c->nv + b;
+            double cam_abs_x = (double)((int)c->cam_x * 4), cam_abs_z = (double)((int)c->cam_z * 4);
+            double car_off_x = (double)e->far_x * 4 - cam_abs_x;
+            double car_off_z = (double)e->far_z * 4 - cam_abs_z;
+            for (int i = 0; i < e->far_count; i++) {
+                double rx = (double)c->fvx[b + i] - car_off_x, rz = (double)c->fvz[b + i] - car_off_z;
+                double nx = rx * cs + rz * sn, nz = rz * cs - rx * sn;
+                v->vx[g + i] = (float)(v->cam_x4 + car_off_x + nx + 4.0 * dx - dxc);
+                v->vz[g + i] = (float)(v->cam_z4 + car_off_z + nz + 4.0 * dz - dzc);
+                v->vy[g + i] = (float)(c->fvy[b + i] + dy);
+            }
         }
     }
 

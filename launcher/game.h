@@ -49,12 +49,14 @@ struct GameOptions {
     int scale = 3;          // --scale: the window is 320x240 times this
     bool fullscreen = false;  // --fullscreen
     bool finishMarker = true; // --finish-marker: the finish's direction on the compass
+    bool randomRivals = true; // --random-rivals: the opponents drive cars drawn from the other cars
     bool classic = false;   // --classic: the original picture instead of the enhanced view
     int resScale = 4;       // --res-scale: the picture is 320x200 times this
     int aa = 2;             // --aa: anti-aliasing, aa x aa samples a pixel (1 = off)
     int motionDelay = 50;   // --motion-delay: percent of a game frame the smooth view runs behind
     int haze = 70;          // --haze: distance fog, percent of the horizon's sky colour (0 = off)
-    int drawDistance = 7;   // --draw-distance: map cells drawn around the camera (0 = the game's own)
+    int drawDistance = 18;  // --draw-distance: map cells drawn around the camera (0 = the game's own)
+    bool farLod = false;    // --far-lod: the original's reduced far models instead of the full ones
     int fogStart = 10;      // --fog-start: where the fog begins, percent of the way to where it is full
     bool enhLights = true;  // --enh-lights: the enhanced headlight beams (the --beam-* below)
     int beamNight = 100;    // --beam-night: headlight beams' strength at night, percent
