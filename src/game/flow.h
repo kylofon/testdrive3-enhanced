@@ -118,6 +118,7 @@ void opponent_results(void);                      /* 01f4:55f0 — §4.16 */
 
 /* ---- flow_race.c: one leg ---- */
 void race_run(void);                              /* 0792:000c — §4.13 */
+void race_opponents_pick(void);                   /* ENH: pick the two rival cars for a course */
 void car_leg_reset(void);                         /* 0792:083c — §4.14 */
 void stage_load_objects(void);                    /* 0792:0d2e — §4.14 */
 void leg_map_load(void);                          /* 0792:0fce — §4.14 */

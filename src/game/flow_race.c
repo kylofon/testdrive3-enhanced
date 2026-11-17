@@ -2,6 +2,7 @@
  * frame pacing), the car reset at a leg (re)start and the stage / leg map loaders. Segment 0792. */
 #include "game/game.h"
 #include "enhanced/enhanced.h"
+#include "portcfg.h"
 
 #include <SDL3/SDL.h>
 
@@ -218,6 +219,56 @@ void car_leg_reset(void)
     mouse_set_pos(0xa0, 100);
 }
 
+/* ENH: choose the computer cars for the whole course. The original derived both opponents from the
+ * player's slot on every leg (DS_opp*_slot = player ^ 1, or slots 0/1/2), so the three-car game never
+ * used the two expansion cars against you. Here the slots are drawn once from the other cars on the
+ * play disk and kept in DS_opp1_slot / DS_opp2_slot; stage_load_objects() reloads those slots on each
+ * leg, so a leg change (or a restart within a leg) keeps the same two rivals. */
+void race_opponents_pick(void)
+{
+    u8 others[14];                                     /* DS_car_slots holds at most 14 cars */
+    u8 n = 0;
+    u8 player = (u8)DSW(DS_car_index);
+    u8 installed = DSB(DS_cars_on_disk);
+
+    if (!portcfg.random_rivals) {
+        /* ENH option off: the original's three-car selection, made here once for the whole course.
+         * DSW(DS_car_index) cannot change while a course runs, so this is the same on every leg. */
+        DSB(DS_opp1_slot) = 0;
+        DSB(DS_opp2_slot) = 0;
+        if (installed > 1) {
+            if (installed == 2) {
+                DSB(DS_opp1_slot) = (u8)(player ^ 1);
+                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
+            } else {
+                DSB(DS_opp1_slot) = 0;
+                DSB(DS_opp2_slot) = 1;
+                if (player == 0) DSB(DS_opp1_slot) = 2;
+                if (player == 1) DSB(DS_opp2_slot) = 2;
+            }
+        }
+        return;
+    }
+    if (DSB(DS_protection_ok) == 0 || DSB(DS_race_computer_cars) == 0) {
+        DSB(DS_opp1_slot) = 0;
+        DSB(DS_opp2_slot) = 0;
+        return;
+    }
+    if (installed > 14) installed = 14;
+    for (u8 slot = 0; slot < installed; slot++) {
+        if (slot != player && DSB((u16)(slot * 6 + DS_car_slots)) == 'C') others[n++] = slot;
+    }
+    if (n == 0) {                                      /* no other car installed: keep the player's */
+        DSB(DS_opp1_slot) = player;
+        DSB(DS_opp2_slot) = player;
+        return;
+    }
+    u8 first = (u8)(td3_random() % n);
+    DSB(DS_opp1_slot) = others[first];
+    others[first] = others[--n];                       /* do not give both rivals the same car */
+    DSB(DS_opp2_slot) = (n == 0) ? DSB(DS_opp1_slot) : others[td3_random() % n];
+}
+
 /* 0792:0d2e stage_load_objects — game_flow.md §4.14 (leg sprites, map, tiles, object sets, car and opponents) */
 void stage_load_objects(void)
 {
@@ -254,21 +305,10 @@ void stage_load_objects(void)
     }
     flow_strcpy(DS_path_car + 7, 0x11C5);                      /* ".POB" */
     file_load_far(DS_path_car, ds_far(DS_car_pob));
-    DSB(DS_opp2_slot) = 0;
-    DSB(DS_opp1_slot) = 0;
+    /* ENH: the slots were picked once for the course by race_opponents_pick(); the original recomputed
+     * them from DS_car_index here on every leg, which confined the rivals to the three original cars. */
     if (DSB(DS_protection_ok) != 0 && DSB(DS_race_computer_cars) != 0 && DSB(DS_menu_preview) == 0) {
         u16 f;
-        if (DSB(DS_cars_on_disk) > 1) {
-            if (DSB(DS_cars_on_disk) == 2) {
-                DSB(DS_opp1_slot) = (u8)(DSB(DS_car_index) ^ 1);
-                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
-            } else {
-                DSB(DS_opp1_slot) = 0;
-                DSB(DS_opp2_slot) = 1;
-                if (DSW(DS_car_index) == 0) DSB(DS_opp1_slot) = 2;
-                if (DSW(DS_car_index) == 1) DSB(DS_opp2_slot) = 2;
-            }
-        }
         flow_strcpy(DS_path_opponent + 2, (u16)(DSB(DS_opp1_slot) * 6 + DS_car_slots));
         flow_strcpy(DS_path_opponent + 7, 0x11CA);             /* ".LST" */
         f = crt_fopen(DS_path_opponent, 0x11CF);               /* "rb" */

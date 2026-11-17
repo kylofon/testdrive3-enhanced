@@ -19,6 +19,8 @@ with supporting source-level evidence recorded in the engine documentation.
 * Smooth steering; spins, slides and the handbrake as in the original.
 * Truer game speed; the race clock counts real seconds.
 * Finish marker on the compass.
+* Random rival cars: the two computer opponents drive cars drawn from the four other cars, for the whole course
+  (on by default; switchable in the launcher or with `--random-rivals 0` for the original's behaviour).
 * Fixes to police, landings and other original quirks (see `CHANGELOG.md`).
 * A launcher for car, course, skill and picture options.
 
@@ -83,6 +85,7 @@ cmake --build build
 | `--far-lod 0\|1` | Reduced far models for vehicles and some buildings at distance (default 0 = full detail; 1 = the original's) |
 | `--keys NAME=CODE,...` | Key bindings (the launcher's Game settings > Key Bindings) |
 | `--finish-marker 0\|1` | Finish marker on the compass (default 1) |
+| `--random-rivals 0\|1` | Random cars for the two opponents (default 1; 0 = the original's selection) |
 | `--frame-ticks N` | Game speed, timer ticks per frame (default 14) |
 | `--classic` | Original picture only |
 | `--sound adlib\|speaker` | Sound device |
