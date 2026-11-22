@@ -288,18 +288,34 @@ static void vehicle_follow_lane(u16 bx)
             key = (u16)(0xC0 | ((u8)((dir ^ 2) - al) & 3));
         }
         /* search the lane entry; dead end: U-turn in the same cell. Faithful: a waypoint count of 0
-         * loops 256 times, and bad data can loop forever as in the original. */
-        for (;;) {
-            w = lane_list_for_cell(di);
-            k = 0;
-            do {
-                if (key == rd16(w.seg, w.off)) goto found;
-                w.off = (u16)(w.off + 8);
-                k++;
-                DSB(0x946D) = (u8)(DSB(0x946D) - 1);
-            } while (DSB(0x946D) != 0);
-            key = (u16)(0xC0 | (DSB(DS_coll_bits) & 3));
-            di = OW(DS_obj_cell, bx);
+         * loops 256 times. ENH: the original can loop forever when bad/curvy lane data has no matching
+         * entry even after the fallback; bail out with an in-place U-turn instead of freezing. */
+        {
+            int tried_fallback = 0;
+            for (;;) {
+                w = lane_list_for_cell(di);
+                k = 0;
+                do {
+                    if (key == rd16(w.seg, w.off)) goto found;
+                    w.off = (u16)(w.off + 8);
+                    k++;
+                    DSB(0x946D) = (u8)(DSB(0x946D) - 1);
+                } while (DSB(0x946D) != 0);
+                if (tried_fallback) {
+                    /* No matching entry found; reverse direction to avoid an infinite loop. */
+                    u16 v;
+                    OW(DS_obj_waypoint, bx) = (u16)(DSB(DS_shuttle_period) << 8 | (u8)OW(DS_obj_waypoint, bx));
+                    v = OW(DS_obj_vel, bx);
+                    OW(DS_obj_vel, bx) = (u16)((u8)-(u8)(v >> 8) << 8 | (u8)-(u8)v);
+                    v = OW(DS_obj_pitch, bx);
+                    OW(DS_obj_pitch, bx) = (u16)((v & 0xFF00) | (u8)-(u8)v);
+                    OW(DS_obj_heading, bx) ^= 0x8080;
+                    return;
+                }
+                key = (u16)(0xC0 | (DSB(DS_coll_bits) & 3));
+                di = OW(DS_obj_cell, bx);
+                tried_fallback = 1;
+            }
         }
     found:
         DSB(DS_place_nverts) = k;
