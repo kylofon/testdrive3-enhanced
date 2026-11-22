@@ -341,6 +341,8 @@ void leg_map_load(void)
         DSB(DS_path_scene + 9) = (u8)(DSB(DS_leg_index) + 'A');
         flow_strcpy(DS_path_scene + 10, 0x11E4);               /* ".DAT" */
         file_load_near(DS_path_scene, DS_leg_file);
+        if (portcfg.weight > 1)
+            DSW(DS_leg_gravity) = (u16)(DSW(DS_leg_gravity) * (u16)portcfg.weight);  /* ENH: --weight */
     }
     if (DSB(DS_protection_ok) == 0 || DSB(DS_race_computer_cars) == 0 || DSB(DS_menu_preview) != 0) {
         DSW(DS_obj_flags + 2) = 0x2f;                          /* DS:A47B: opponents not racing */

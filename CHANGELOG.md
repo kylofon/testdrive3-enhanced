@@ -17,6 +17,8 @@
 - The two computer opponents now drive a random selection of the other cars on the play disk, including the
   expansion cars; the same two cars race all legs of a course. On by default, with a launcher checkbox and
   `--random-rivals 0` to keep the original's behaviour.
+- Car weight multiplier (`--weight 1|2|3`, default 1): scales gravity so cars stay planted over hills instead
+  of flying off crests at speed. 2x/3x also increase climbing resistance and grip. Available in the launcher.
 
 ## 0.2.0
 

@@ -5,7 +5,7 @@
 #include "mem.h"
 #include "symbols.h"
 
-PortConfig portcfg = { "", "", 0, -1, true, true };
+PortConfig portcfg = { "", "", 0, -1, true, true, 1 };
 
 void portcfg_apply_config(void)
 {

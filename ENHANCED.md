@@ -405,6 +405,7 @@ the display rate (VSync).
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
 | `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
 | `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
+| `--weight 1\|2\|3` | 1 | car weight/gravity multiplier (1 = original; higher keeps cars planted over hills) |
 | `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 

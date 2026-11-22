@@ -50,6 +50,7 @@ struct GameOptions {
     bool fullscreen = false;  // --fullscreen
     bool finishMarker = true; // --finish-marker: the finish's direction on the compass
     bool randomRivals = true; // --random-rivals: the opponents drive cars drawn from the other cars
+    int weight = 1;         // --weight: car weight/gravity multiplier (1 = original, 2, 3)
     bool classic = false;   // --classic: the original picture instead of the enhanced view
     int resScale = 4;       // --res-scale: the picture is 320x200 times this
     int aa = 2;             // --aa: anti-aliasing, aa x aa samples a pixel (1 = off)

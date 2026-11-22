@@ -223,6 +223,7 @@ LauncherFrame::LauncherFrame(const wxString& gameDirArg)
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
     finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
     randomRivals_->SetValue(settings::GetInt(SECTION, "RandomRivals", 1) != 0);
+    weight_->SetSelection(wxMax(0, wxMin(2, settings::GetInt(SECTION, "Weight", 1) - 1)));
     ShowLook(look_);
     ShowEditedKeys();
     loading_ = false;
@@ -317,6 +318,14 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
     for (int s = MIN_SCALE; s <= MAX_SCALE; ++s) scale_->Append(wxString::Format(L"%d × %d", 320 * s, 240 * s));
     scale_->SetToolTip("The window's size when the game starts. Alt+Enter switches to full screen.");
     grid->Add(scale_, 0, wxALIGN_CENTER_VERTICAL);
+    grid->Add(new wxStaticText(ob, wxID_ANY, "Car w&eight:"), 0, wxALIGN_CENTER_VERTICAL);
+    weight_ = new wxChoice(ob, wxID_ANY);
+    weight_->Append("1x (original)");
+    weight_->Append("2x");
+    weight_->Append("3x");
+    weight_->SetToolTip("Scales gravity so cars stay planted over hills. Higher values make the car heavier "
+                        "(less air over crests, faster fall, more climbing resistance and grip).");
+    grid->Add(weight_, 0, wxALIGN_CENTER_VERTICAL);
     optionsBox->Add(grid, 0, wxLEFT | wxRIGHT | wxTOP, gap);
     fullscreen_ = new wxCheckBox(ob, wxID_ANY, "Start in f&ull screen (Alt+Enter switches)");
     optionsBox->Add(fullscreen_, 0, wxALL, gap);
@@ -694,6 +703,7 @@ void LauncherFrame::Play() {
     options.fullscreen = fullscreen_->GetValue();
     options.finishMarker = finishMarker_->GetValue();
     options.randomRivals = randomRivals_->GetValue();
+    options.weight = weight_->GetSelection() + 1;
     options.classic = look_.classic;
     options.resScale = look_.resScale;
     options.aa = look_.aa;
@@ -727,6 +737,7 @@ void LauncherFrame::Save() {
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "RandomRivals", randomRivals_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "Weight", weight_->GetSelection() + 1);
     SaveLook(look_);
     settings::SaveWindowPosition(SECTION, this);
 }

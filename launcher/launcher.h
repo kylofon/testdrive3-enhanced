@@ -91,6 +91,7 @@ private:
     wxCheckBox* fullscreen_ = nullptr;
     wxCheckBox* finishMarker_ = nullptr;
     wxCheckBox* randomRivals_ = nullptr;
+    wxChoice* weight_ = nullptr;
     wxStaticText* lookNote_ = nullptr;  // the main page's summary of the graphics
     wxButton* play_ = nullptr;
 

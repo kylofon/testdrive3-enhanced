@@ -12,6 +12,7 @@ typedef struct {
     bool finish_marker; /* ENH --finish-marker 0|1: the finish's direction on the compass (default on) */
     bool random_rivals; /* ENH --random-rivals 0|1: random cars for the computer opponents (default on);
                          * 0 = the original's selection from the three-car game */
+    int weight;         /* ENH --weight 1|2|3: car weight multiplier (gravity scaled 1x/2x/3x); 1 = original */
 } PortConfig;
 
 extern PortConfig portcfg;

@@ -31,6 +31,9 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * **Random rival cars** (`--random-rivals`, on by default): the two computer opponents drive a pair of cars
     drawn from the other cars on the play disk, including the expansion cars, and keep them for the whole course.
     Off: the original's selection from the three-car game. Stored as `RandomRivals` in `settings.ini`.
+  * **Car weight** (`--weight`, default 1): a gravity multiplier that keeps cars planted over hills. `1x` is
+    the original; `2x` and `3x` make the car heavier (less air over crests, faster fall, more climbing
+    resistance and grip). Stored as `Weight` in `settings.ini`.
 * **Graphics**: a summary of the picture settings and the **Graphics** button (as Game settings > Graphics).
 * **Play** starts the game; the launcher stays open.
 
