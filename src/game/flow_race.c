@@ -6,6 +6,12 @@
 
 #include <SDL3/SDL.h>
 
+/* ENH --weather-fix: the original uses one DS_zone_dir for wind, rain and snow, so a crossing of one weather
+ * type can flip the direction of another. Keep a direction per weather type instead. */
+static u8 weather_wind_dir;
+static u8 weather_rain_dir;
+static u8 weather_snow_dir;
+
 /* 0792:000c race_run — game_flow.md §4.13 (verified) */
 void race_run(void)
 {
@@ -135,14 +141,16 @@ void race_run(void)
             if (DSB(DS_ext_view) == 0) {
                 u8 surf = DSB(DS_surface_under_car);
                 if (surf == 0x1c) {                            /* weather zone, step 2, 0..4 (no remap) */
-                    if (DSB(DS_wind_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_wind_level) == 4) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) + 2);
+                    u8 *dir = portcfg.weather_fix ? &weather_wind_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_wind_level) == 0) *dir = 1;
+                    if (DSB(DS_wind_level) == 4) *dir = 0;
+                    if (*dir == 1) DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) + 2);
                     else DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) - 2);
                 } else if (surf == 0x1d) {
-                    if (DSB(DS_rain_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_rain_level) == 8) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) {
+                    u8 *dir = portcfg.weather_fix ? &weather_rain_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_rain_level) == 0) *dir = 1;
+                    if (DSB(DS_rain_level) == 8) *dir = 0;
+                    if (*dir == 1) {
                         DSB(DS_rain_level) = (u8)(DSB(DS_rain_level) + 4);
                         DSB(DS_sky_alt) = 1;
                     } else {
@@ -152,9 +160,10 @@ void race_run(void)
                     build_colour_remap();
                 } else if (surf == 0x1e) {
                     DSB(DS_rain_level) = 0;
-                    if (DSB(DS_snow_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_snow_level) == 8) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) {
+                    u8 *dir = portcfg.weather_fix ? &weather_snow_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_snow_level) == 0) *dir = 1;
+                    if (DSB(DS_snow_level) == 8) *dir = 0;
+                    if (*dir == 1) {
                         DSB(DS_snow_level) = (u8)(DSB(DS_snow_level) + 4);
                         DSB(DS_sky_alt) = 1;
                     } else {
@@ -165,8 +174,11 @@ void race_run(void)
                 } else if (surf == 0x1f) {
                     DSW(DS_race_state) = 3;                    /* finish (gas station tile) */
                 }
+                DSB(DS_last_surface) = DSB(DS_surface_under_car);
+            } else if (!portcfg.weather_fix) {
+                DSB(DS_last_surface) = DSB(DS_surface_under_car);
             }
-            DSB(DS_last_surface) = DSB(DS_surface_under_car);
+            /* ENH --weather-fix: when in external view, keep the transition pending so it fires on return. */
         }
         if (DSB(DS_protection_ok) == 0 && DSB(DS_clock_min) == 2) {   /* demo limit */
             message_box(0x1f);                                 /* "Your time is up..." */

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Weather trigger fix (`--weather-fix 0|1`, default 1): wind, rain and snow keep separate ramp directions, and a weather surface crossed during an external view is no longer lost. Off restores the original's shared direction, which can make rain or snow fail to deactivate.
 - Draw distance extended to the whole wrapping 32×16 leg map (18 cells, now the default), beyond the game's 3/6/10 cells: the far ring uses 32-bit vertex offsets instead of the game's 16-bit x4 ones, and selects cells, objects, cars and sprites by their nearest image across the map's seams.
 - Cars the game culls at its own draw distance are carried into the enhanced far ring with their live motion and heading, so they no longer pop into view as the landscape renders farther.
 - `--far-lod 1` restores the original's reduced far models for vehicles and some buildings (off by default: the enhanced view keeps the full-detail models at every distance). The launcher has the matching "Use original far models at distance" checkbox.

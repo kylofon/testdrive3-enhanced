@@ -34,6 +34,8 @@
  *                 0 = the original's selection from the three-car game, for all legs of the course)
  *   --weight      ENH: car weight multiplier, 1/2/3 (default 1 = original). Higher weight increases
  *                 gravity so cars stay planted over hills.
+ *   --weather-fix ENH: separate wind/rain/snow trigger direction and don't lose trigger transitions during
+ *                 external view (default 1; 0 = original shared direction)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)
  */
@@ -58,7 +60,8 @@ static int usage(const char *prog)
             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
             "          [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]\n"
             "          [--beam-soft N] [--enh-lights 0|1] [--far-lod 0|1] [--keys NAME=CODE,...]\n"
-            "          [--random-rivals 0|1] [--finish-marker 0|1] [--weight 1|2|3] [--classic] [--check]\n", prog);
+            "          [--random-rivals 0|1] [--finish-marker 0|1] [--weight 1|2|3] [--weather-fix 0|1]\n"
+            "          [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -110,6 +113,7 @@ int main(int argc, char **argv)
             portcfg.weight = w;
             i++;
         }
+        else if (!strcmp(a, "--weather-fix") && v) { portcfg.weather_fix = atoi(v) != 0; i++; }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
         else return usage(argv[0]);

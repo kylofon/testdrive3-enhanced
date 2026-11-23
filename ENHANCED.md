@@ -370,6 +370,17 @@ checkbox) restores the original's three-car selection instead. That branch compu
 `stage_load_objects()` used to recompute on every leg; with a fixed player car during a course the result is
 identical. The option is independent of `--classic`.
 
+## Weather triggers
+
+`ENH:` the original weather zones (surface materials `0x1C` wind, `0x1D` rain, `0x1E` snow, `flow_race.c`)
+ramp their level up and down by sharing one direction byte (`DS_zone_dir`). Crossing a wind zone can therefore
+flip the direction a later rain or snow crossing uses, which makes deactivation flaky. The original also
+drops a weather transition that happens during an external view, because it updates `DS_last_surface` without
+applying the effect.
+
+With `portcfg.weather_fix` on (default, `--weather-fix 0` restores the original), each weather type keeps its
+own ramp direction and a transition crossed during an external view stays pending until the view returns.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
@@ -405,6 +416,7 @@ the display rate (VSync).
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
 | `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
 | `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
+| `--weather-fix 0\|1` | 1 | separate wind/rain/snow trigger direction and keep transitions during external view (0 = original) |
 | `--weight 1\|2\|3` | 1 | car weight/gravity multiplier (1 = original; higher keeps cars planted over hills) |
 | `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
