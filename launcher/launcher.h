@@ -92,6 +92,8 @@ private:
     wxCheckBox* finishMarker_ = nullptr;
     wxCheckBox* randomRivals_ = nullptr;
     wxCheckBox* weatherFix_ = nullptr;
+    wxChoice* aiOpponentRouting_ = nullptr;
+    wxCheckBox* debugKeys_ = nullptr;
     wxChoice* weight_ = nullptr;
     wxStaticText* lookNote_ = nullptr;  // the main page's summary of the graphics
     wxButton* play_ = nullptr;

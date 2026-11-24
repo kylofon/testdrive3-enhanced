@@ -15,6 +15,9 @@ files are not included.
   (on by default; switchable in the launcher or with `--random-rivals 0` for the original's behaviour).
 * Weather trigger fix: rain/snow deactivation no longer gets stuck by the original's shared weather direction
   (on by default; `--weather-fix 0` restores the original behaviour).
+* AI Opponent Routing (`--ai-opponent-routing legacy|deterministic|random`): generate opponent AI branch scripts
+  at leg load from valid lane routes to the resolved finish. `legacy` uses scene scripts; `deterministic` picks
+  stable separate routes when possible; `random` picks an independent random valid route per opponent.
 * Adjustable car weight (`--weight 1|2|3`): scale gravity to keep cars planted over hills.
 * Fixes to police, landings and other original quirks (see `CHANGELOG.md`).
 * A launcher for car, course, skill and picture options.
@@ -82,6 +85,7 @@ cmake --build build
 | `--finish-marker 0\|1` | Finish marker on the compass (default 1) |
 | `--random-rivals 0\|1` | Random cars for the two opponents (default 1; 0 = the original's selection) |
 | `--weather-fix 0\|1` | Separate wind/rain/snow trigger direction (default 1; 0 = original) |
+| `--ai-opponent-routing legacy\|deterministic\|random` | AI opponent routing (default `legacy` = scene scripts) |
 | `--weight 1\|2\|3` | Car weight/gravity multiplier (default 1 = original) |
 | `--frame-ticks N` | Game speed, timer ticks per frame (default 14) |
 | `--classic` | Original picture only |
