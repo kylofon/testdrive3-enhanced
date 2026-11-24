@@ -224,6 +224,12 @@ LauncherFrame::LauncherFrame(const wxString& gameDirArg)
     finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
     randomRivals_->SetValue(settings::GetInt(SECTION, "RandomRivals", 1) != 0);
     weatherFix_->SetValue(settings::GetInt(SECTION, "WeatherFix", 1) != 0);
+    {
+        int v = settings::GetInt(SECTION, "AiOpponentRouting", -1);
+        if (v < 0) { int old = settings::GetInt(SECTION, "AiRouteFinding", 0); v = (old != 0) ? 2 : 0; }
+        aiOpponentRouting_->SetSelection(wxMax(0, wxMin(2, v)));
+    }
+    debugKeys_->SetValue(settings::GetInt(SECTION, "DebugKeys", 0) != 0);
     weight_->SetSelection(wxMax(0, wxMin(2, settings::GetInt(SECTION, "Weight", 1) - 1)));
     ShowLook(look_);
     ShowEditedKeys();
@@ -327,6 +333,15 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
     weight_->SetToolTip("Scales gravity so cars stay planted over hills. Higher values make the car heavier "
                         "(less air over crests, faster fall, more climbing resistance and grip).");
     grid->Add(weight_, 0, wxALIGN_CENTER_VERTICAL);
+    grid->Add(new wxStaticText(ob, wxID_ANY, "AI &Opponent Routing:"), 0, wxALIGN_CENTER_VERTICAL);
+    aiOpponentRouting_ = new wxChoice(ob, wxID_ANY);
+    aiOpponentRouting_->Append("Legacy");
+    aiOpponentRouting_->Append("Modern: Deterministic");
+    aiOpponentRouting_->Append("Modern: Random");
+    aiOpponentRouting_->SetToolTip("Legacy: use the scene's original opponent scripts. "
+                                   "Modern: Deterministic: generate stable routes and give opponents separate routes when possible. "
+                                   "Modern: Random: generate an independent random valid route per opponent.");
+    grid->Add(aiOpponentRouting_, 0, wxALIGN_CENTER_VERTICAL);
     optionsBox->Add(grid, 0, wxLEFT | wxRIGHT | wxTOP, gap);
     fullscreen_ = new wxCheckBox(ob, wxID_ANY, "Start in f&ull screen (Alt+Enter switches)");
     optionsBox->Add(fullscreen_, 0, wxALL, gap);
@@ -344,6 +359,11 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
                             "trigger crossed during an external view. Off: the original's shared direction, "
                             "which can make rain or snow fail to deactivate.");
     optionsBox->Add(weatherFix_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
+
+    debugKeys_ = new wxCheckBox(ob, wxID_ANY, "Debug keys");
+    debugKeys_->SetToolTip("Enable the original's dormant debug keys (TD3_DEBUG_KEYS=1): T rain, S snow, N night, "
+                           "F8 end leg. Also makes the car invulnerable.");
+    optionsBox->Add(debugKeys_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
     // Graphics: a summary and the way to the page
     auto* lookBox = new wxStaticBoxSizer(wxVERTICAL, page, "Graphics");
@@ -710,6 +730,8 @@ void LauncherFrame::Play() {
     options.finishMarker = finishMarker_->GetValue();
     options.randomRivals = randomRivals_->GetValue();
     options.weatherFix = weatherFix_->GetValue();
+    options.aiOpponentRouting = aiOpponentRouting_->GetSelection();
+    options.debugKeys = debugKeys_->GetValue();
     options.weight = weight_->GetSelection() + 1;
     options.classic = look_.classic;
     options.resScale = look_.resScale;
@@ -745,6 +767,8 @@ void LauncherFrame::Save() {
     settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "RandomRivals", randomRivals_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "WeatherFix", weatherFix_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "AiOpponentRouting", aiOpponentRouting_->GetSelection());
+    settings::SetInt(SECTION, "DebugKeys", debugKeys_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "Weight", weight_->GetSelection() + 1);
     SaveLook(look_);
     settings::SaveWindowPosition(SECTION, this);

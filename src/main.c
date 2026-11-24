@@ -61,7 +61,7 @@ static int usage(const char *prog)
             "          [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]\n"
             "          [--beam-soft N] [--enh-lights 0|1] [--far-lod 0|1] [--keys NAME=CODE,...]\n"
             "          [--random-rivals 0|1] [--finish-marker 0|1] [--weight 1|2|3] [--weather-fix 0|1]\n"
-            "          [--classic] [--check]\n", prog);
+            "          [--ai-opponent-routing legacy|deterministic|random] [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -114,6 +114,13 @@ int main(int argc, char **argv)
             i++;
         }
         else if (!strcmp(a, "--weather-fix") && v) { portcfg.weather_fix = atoi(v) != 0; i++; }
+        else if ((!strcmp(a, "--ai-opponent-routing") || !strcmp(a, "--ai-route-finding")) && v) {
+            if (!strcmp(v, "legacy") || !strcmp(v, "0")) portcfg.ai_opponent_routing = 0;
+            else if (!strcmp(v, "deterministic") || !strcmp(v, "1")) portcfg.ai_opponent_routing = 1;
+            else if (!strcmp(v, "random") || !strcmp(v, "2")) portcfg.ai_opponent_routing = 2;
+            else { fprintf(stderr, "bad --ai-opponent-routing: %s (expected legacy, deterministic, or random)\n", v); return usage(argv[0]); }
+            i++;
+        }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
         else return usage(argv[0]);

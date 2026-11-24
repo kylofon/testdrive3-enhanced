@@ -15,6 +15,9 @@ typedef struct {
     int weight;         /* ENH --weight 1|2|3: car weight multiplier (gravity scaled 1x/2x/3x); 1 = original */
     bool weather_fix;   /* ENH --weather-fix 0|1: separate wind/rain/snow trigger direction and don't lose
                          * transitions during external view (default on); 0 = original shared direction */
+    int ai_opponent_routing; /* ENH --ai-opponent-routing legacy|deterministic|random (0|1|2): generate opponent AI
+                              * branch scripts at leg load by probing valid lane routes to the finish. 0 = legacy
+                              * scene scripts, 1 = modern deterministic, 2 = modern random. */
 } PortConfig;
 
 extern PortConfig portcfg;

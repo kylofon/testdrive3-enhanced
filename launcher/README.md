@@ -34,6 +34,13 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * **Weather trigger fix** (`--weather-fix`, on by default): gives wind, rain and snow their own trigger
     direction and keeps a weather trigger crossed during an external view. Off: the original's shared
     direction, which can make rain or snow fail to deactivate. Stored as `WeatherFix` in `settings.ini`.
+  * **AI Opponent Routing** (`--ai-opponent-routing`, default `legacy`): controls how opponent AI branch scripts are
+    chosen at leg load. `Legacy` uses the scripts stored in the scene data. `Modern: Deterministic` probes valid
+    lane routes to the resolved finish and picks stable routes, giving opponents separate routes when possible.
+    `Modern: Random` picks an independent random valid route per opponent. Stored as `AiOpponentRouting` in
+    `settings.ini` (old `AiRouteFinding` values are migrated).
+  * **Debug keys** (`TD3_DEBUG_KEYS=1`, off by default): enables the original's dormant debug keys - T rain,
+    S snow, N night, F8 end leg - and makes the car invulnerable. Stored as `DebugKeys` in `settings.ini`.
   * **Car weight** (`--weight`, default 1): a gravity multiplier that keeps cars planted over hills. `1x` is
     the original; `2x` and `3x` make the car heavier (less air over crests, faster fall, more climbing
     resistance and grip). Stored as `Weight` in `settings.ini`.

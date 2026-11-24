@@ -381,6 +381,19 @@ applying the effect.
 With `portcfg.weather_fix` on (default, `--weather-fix 0` restores the original), each weather type keeps its
 own ramp direction and a transition crossed during an external view stays pending until the view returns.
 
+## AI Opponent Routing
+
+`ENH --ai-opponent-routing` (default `legacy`): controls opponent AI branch scripts at leg load. `Legacy` uses
+the scripts stored in the scene data. `Modern: Deterministic` and `Modern: Random` probe valid lane routes to
+the resolved finish cell using the same control-point/branch semantics as the game, then write a route script
+into `DS_opp_scripts`. The original scene data files are unchanged; branch scripts remain the on-disk/runtime
+format for DOS compatibility.
+
+Finish resolution: SCENE02 uses the unique `0x51` finish-line cell when present; other scenes trace original
+opponent scripts through the lane graph and require agreement. If unresolved, original scripts are kept.
+`Deterministic` picks stable routes and gives opponents separate routes when possible; `Random` picks an
+independent random valid route per opponent.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
@@ -417,6 +430,7 @@ the display rate (VSync).
 | `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
 | `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
 | `--weather-fix 0\|1` | 1 | separate wind/rain/snow trigger direction and keep transitions during external view (0 = original) |
+| `--ai-opponent-routing legacy\|deterministic\|random` | legacy | AI opponent routing: `legacy` scene scripts, `deterministic` stable separate routes when possible, `random` independent random route per opponent |
 | `--weight 1\|2\|3` | 1 | car weight/gravity multiplier (1 = original; higher keeps cars planted over hills) |
 | `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
