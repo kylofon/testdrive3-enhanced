@@ -1,25 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
-- Weather trigger fix (`--weather-fix 0|1`, default 1): wind, rain and snow keep separate ramp directions, and a weather surface crossed during an external view is no longer lost. Off restores the original's shared direction, which can make rain or snow fail to deactivate.
-- Draw distance can reach 8 cells (default 7), across the wrapping 32×16 leg map's seams: the far ring uses 32-bit vertex offsets instead of the game's 16-bit x4 ones, and selects cells, objects, cars and sprites by their nearest image across the map's seams.
-- Cars the game culls at its own draw distance are carried into the enhanced far ring with their live motion and heading, so they no longer pop into view as the landscape renders farther.
-- `--far-lod 1` restores the original's reduced far models for vehicles and some buildings (off by default: the enhanced view keeps the full-detail models at every distance). The launcher has the matching "Use original far models at distance" checkbox.
-
-## Unreleased
-
-- Draw distance can reach 8 cells (default 7), across the wrapping 32×16 leg map's seams: the far ring uses 32-bit vertex offsets instead of the game's 16-bit x4 ones, and selects cells, objects, cars and sprites by their nearest image across the map's seams.
-- Cars the game culls at its own draw distance are carried into the enhanced far ring with their live motion and heading, so they no longer pop into view as the landscape renders farther.
-- `--far-lod 1` restores the original's reduced far models for vehicles and some buildings (off by default: the enhanced view keeps the full-detail models at every distance). The launcher has the matching "Use original far models at distance" checkbox.
-
-## Unreleased
-
-- The two computer opponents now drive a random selection of the other cars on the play disk, including the
-  expansion cars; the same two cars race all legs of a course. On by default, with a launcher checkbox and
-  `--random-rivals 0` to keep the original's behaviour.
-- Car weight multiplier (`--weight 1|2|3`, default 1): scales gravity so cars stay planted over hills instead
-  of flying off crests at speed. 2x/3x also increase climbing resistance and grip. Available in the launcher.
+- Draw distance up to 8 cells, across the map's seams, with the cars beyond the game's own range.
+- Random rival cars (`--random-rivals`), car weight (`--weight`), original far models (`--far-lod`).
+- Fixes: weather triggers (`--weather-fix`), traffic freezing at some lane ends.
+- Linux build. Thanks to Miragecoder.
 
 ## 0.2.0
 
