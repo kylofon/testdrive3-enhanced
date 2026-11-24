@@ -72,7 +72,7 @@ cmake --build build
 | `--aa N` | Anti-aliasing, N×N samples (default 2, 1 = off) |
 | `--motion-delay P` | Smooth view delay, % of a game frame (default 100) |
 | `--haze P` | Distance fog, % of the sky colour at the edge of the view (default 70, 0 = off) |
-| `--draw-distance N` | Map cells drawn around the camera, with their scenery, trees and cars (default 18 — the whole wrapping leg map, 0–18, 0 = original) |
+| `--draw-distance N` | Map cells drawn around the camera, with their scenery, trees and cars (default 7, 0–8 — 8 is as far as the wrapping leg map reaches north and south; 0 = original) |
 | `--fog-start P` | Where the fog begins, % of the way to where it is full (default 10) |
 | `--beam-night P`, `--beam-day P` | Headlight beams' strength at night / by day, % (default 100 / 35) |
 | `--beam-soft N` | Headlight beams' soft edge, pixels (default 3, 0 = hard) |

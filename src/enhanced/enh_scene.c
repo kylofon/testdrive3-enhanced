@@ -742,8 +742,17 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     for (int k = 0; k < s->nspr; k++) {
         const EnhSpr *e = &s->spr[k];
         if ((u8)e->id == 0) continue;
-        /* sprites can now stand beyond 8 cells from the camera, where the 16-bit sign wrap would fold them */
-        double dx = 4.0 * v->spr_x[k] - cam_abs_x, dz = 4.0 * v->spr_z[k] - cam_abs_z;
+        /* the game's own sprites are in its wrapping coordinates, near the camera: the 16-bit wrap carries them
+         * across the map's seams. The far ring's are already at their image nearest the camera, in unwrapped
+         * position units, and may stand beyond 8 cells, where that wrap would fold them. */
+        double dx, dz;
+        if (k < s->nspr_game) {
+            dx = wraps(4.0 * v->spr_x[k] - v->cam_x4);
+            dz = wraps(4.0 * v->spr_z[k] - v->cam_z4);
+        } else {
+            dx = 4.0 * v->spr_x[k] - cam_abs_x;
+            dz = 4.0 * v->spr_z[k] - cam_abs_z;
+        }
         double d = sqrt(dx * dx + dz * dz);
         SprItem *it = &sprs[ns++];
         it->k = k;
