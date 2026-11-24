@@ -266,8 +266,9 @@ void race_opponents_pick(void)
         DSB(DS_opp2_slot) = 0;
         return;
     }
-    if (installed > 14) installed = 14;
-    for (u8 slot = 0; slot < installed; slot++) {
+    /* every slot of the play disk, by the game's own empty-slot test (car_lst_load: a filled slot starts
+     * with 'C'), not only the first cars_on_disk: a removed car can leave a gap before the last one */
+    for (u8 slot = 0; slot < 14; slot++) {
         if (slot != player && DSB((u16)(slot * 6 + DS_car_slots)) == 'C') others[n++] = slot;
     }
     if (n == 0) {                                      /* no other car installed: keep the player's */
