@@ -289,7 +289,7 @@ static void vehicle_follow_lane(u16 bx)
         }
         /* search the lane entry; dead end: U-turn in the same cell. Faithful: a waypoint count of 0
          * loops 256 times. ENH: the original can loop forever when bad/curvy lane data has no matching
-         * entry even after the fallback; bail out with an in-place U-turn instead of freezing. */
+         * entry even after the fallback; take an entry of the vehicle's own cell instead of freezing. */
         {
             int tried_fallback = 0;
             for (;;) {
@@ -302,7 +302,25 @@ static void vehicle_follow_lane(u16 bx)
                     DSB(0x946D) = (u8)(DSB(0x946D) - 1);
                 } while (DSB(0x946D) != 0);
                 if (tried_fallback) {
-                    /* No matching entry found; reverse direction to avoid an infinite loop. */
+                    /* Neither key matched, and every further pass would repeat the last one. The fallback's
+                     * key comes from DS_coll_bits, which the police U-turn branch above never sets (it holds
+                     * whatever the last vehicle left there). Take an entry of the vehicle's own cell instead:
+                     * the one at its exit edge (wf & 3, the U-turn the fallback means), else the first entry
+                     * of the cell. DS:946D = 0 counts 256, as the search above. */
+                    FarPtr e = lane_list_for_cell(di);
+                    int cnt = DSB(0x946D) ? DSB(0x946D) : 256, pick = -1;
+                    for (int j = 0; j < cnt; j++) {
+                        u16 kf = rd16(e.seg, (u16)(e.off + 8 * j));
+                        if ((kf & 0xC0) != 0xC0) continue;
+                        if (pick < 0) pick = j;
+                        if ((kf & 3) == (wf & 3)) { pick = j; break; }
+                    }
+                    if (pick >= 0) {
+                        w = far_make(e.seg, (u16)(e.off + 8 * pick));
+                        k = (u8)pick;
+                        goto found;
+                    }
+                    /* No entry in the cell at all: turn round on the spot, as a shuttle does. */
                     u16 v;
                     OW(DS_obj_waypoint, bx) = (u16)(DSB(DS_shuttle_period) << 8 | (u8)OW(DS_obj_waypoint, bx));
                     v = OW(DS_obj_vel, bx);

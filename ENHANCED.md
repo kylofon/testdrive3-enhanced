@@ -234,7 +234,7 @@ only up to C00h / 1100h / 1C00h (`B6E2`, by detail): scenery appears a few hundr
 hold 1600 vertices and faces, its physics reads the ground from the renderer, so it is not asked for more.
 
 `ENH:` the enhanced view builds the rest itself (`enh_far.c`), for every game frame, read-only: every map cell
-whose centre is within `--draw-distance` cells of the camera (default 18, enough for the whole 32×16 torus)
+whose centre is within `--draw-distance` cells of the camera (default 7, at most 8: the 32×16 torus's nearest images reach 8 cells north and south, and the fog is round)
 that the game did not build (`enh_world_begin` / `enh_world_cell` record its cells in `world_build_visible`),
 from the same tile and object models as `model_place`. The map wraps every 32 cells in X and 16 in Z: the ring
 picks each cell's nearest image across those seams, as the game's own wrapped cell table does, so a cell just
@@ -427,7 +427,7 @@ the display rate (VSync).
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
-| `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
+| `--draw-distance N` | 7 | map cells drawn around the camera, with their scenery, trees and cars (0..8, 8 being the wrapping leg map's reach north and south; 0 = the game's own cells) |
 | `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
 | `--weather-fix 0\|1` | 1 | separate wind/rain/snow trigger direction and keep transitions during external view (0 = original) |
 | `--ai-opponent-routing legacy\|deterministic\|random` | legacy | AI opponent routing: `legacy` scene scripts, `deterministic` stable separate routes when possible, `random` independent random route per opponent |

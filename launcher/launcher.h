@@ -30,7 +30,7 @@ struct Look {
     int motionDelay = 100;  // --motion-delay
     int haze = 70;          // --haze
     int fogStart = 10;      // --fog-start
-    int drawDistance = 18;  // --draw-distance
+    int drawDistance = 7;   // --draw-distance
     bool farLod = false;    // --far-lod
     bool enhLights = true;  // --enh-lights
     int beamNight = 100;    // --beam-night
