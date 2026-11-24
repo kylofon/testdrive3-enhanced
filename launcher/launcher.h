@@ -31,6 +31,7 @@ struct Look {
     int haze = 70;          // --haze
     int fogStart = 10;      // --fog-start
     int drawDistance = 7;   // --draw-distance
+    bool farLod = false;    // --far-lod
     bool enhLights = true;  // --enh-lights
     int beamNight = 100;    // --beam-night
     int beamDay = 35;       // --beam-day
@@ -39,7 +40,7 @@ struct Look {
 
 class LauncherFrame : public wxFrame {
 public:
-    LauncherFrame();
+    explicit LauncherFrame(const wxString& gameDirArg = wxString());
 
 private:
     wxWindow* CreateMainPage(wxWindow* parent);
@@ -89,6 +90,9 @@ private:
     wxChoice* scale_ = nullptr;
     wxCheckBox* fullscreen_ = nullptr;
     wxCheckBox* finishMarker_ = nullptr;
+    wxCheckBox* randomRivals_ = nullptr;
+    wxCheckBox* weatherFix_ = nullptr;
+    wxChoice* weight_ = nullptr;
     wxStaticText* lookNote_ = nullptr;  // the main page's summary of the graphics
     wxButton* play_ = nullptr;
 
@@ -97,6 +101,7 @@ private:
     wxChoice* resolution_ = nullptr;  // 1..8 times 320x200
     wxChoice* aa_ = nullptr;          // off, 2x2, 3x3, 4x4
     wxCheckBox* lights_ = nullptr;    // enhanced lights
+    wxCheckBox* farLod_ = nullptr;    // the original's reduced far models
     struct SliderRow {
         wxSlider* slider;
         wxSpinCtrl* spin;     // the value typed

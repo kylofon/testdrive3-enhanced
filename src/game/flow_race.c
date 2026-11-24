@@ -2,8 +2,15 @@
  * frame pacing), the car reset at a leg (re)start and the stage / leg map loaders. Segment 0792. */
 #include "game/game.h"
 #include "enhanced/enhanced.h"
+#include "portcfg.h"
 
 #include <SDL3/SDL.h>
+
+/* ENH --weather-fix: the original uses one DS_zone_dir for wind, rain and snow, so a crossing of one weather
+ * type can flip the direction of another. Keep a direction per weather type instead. */
+static u8 weather_wind_dir;
+static u8 weather_rain_dir;
+static u8 weather_snow_dir;
 
 /* 0792:000c race_run — game_flow.md §4.13 (verified) */
 void race_run(void)
@@ -128,20 +135,22 @@ void race_run(void)
         }
         if (DSW(DS_race_state) != 3 && DSW(DS_race_state) != 2) view_present();
         race_input(2);
-        random();
+        td3_random();
 
         if (DSB(DS_last_surface) != DSB(DS_surface_under_car)) {
             if (DSB(DS_ext_view) == 0) {
                 u8 surf = DSB(DS_surface_under_car);
                 if (surf == 0x1c) {                            /* weather zone, step 2, 0..4 (no remap) */
-                    if (DSB(DS_wind_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_wind_level) == 4) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) + 2);
+                    u8 *dir = portcfg.weather_fix ? &weather_wind_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_wind_level) == 0) *dir = 1;
+                    if (DSB(DS_wind_level) == 4) *dir = 0;
+                    if (*dir == 1) DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) + 2);
                     else DSB(DS_wind_level) = (u8)(DSB(DS_wind_level) - 2);
                 } else if (surf == 0x1d) {
-                    if (DSB(DS_rain_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_rain_level) == 8) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) {
+                    u8 *dir = portcfg.weather_fix ? &weather_rain_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_rain_level) == 0) *dir = 1;
+                    if (DSB(DS_rain_level) == 8) *dir = 0;
+                    if (*dir == 1) {
                         DSB(DS_rain_level) = (u8)(DSB(DS_rain_level) + 4);
                         DSB(DS_sky_alt) = 1;
                     } else {
@@ -151,9 +160,10 @@ void race_run(void)
                     build_colour_remap();
                 } else if (surf == 0x1e) {
                     DSB(DS_rain_level) = 0;
-                    if (DSB(DS_snow_level) == 0) DSB(DS_zone_dir) = 1;
-                    if (DSB(DS_snow_level) == 8) DSB(DS_zone_dir) = 0;
-                    if (DSB(DS_zone_dir) == 1) {
+                    u8 *dir = portcfg.weather_fix ? &weather_snow_dir : &DSB(DS_zone_dir);
+                    if (DSB(DS_snow_level) == 0) *dir = 1;
+                    if (DSB(DS_snow_level) == 8) *dir = 0;
+                    if (*dir == 1) {
                         DSB(DS_snow_level) = (u8)(DSB(DS_snow_level) + 4);
                         DSB(DS_sky_alt) = 1;
                     } else {
@@ -164,8 +174,11 @@ void race_run(void)
                 } else if (surf == 0x1f) {
                     DSW(DS_race_state) = 3;                    /* finish (gas station tile) */
                 }
+                DSB(DS_last_surface) = DSB(DS_surface_under_car);
+            } else if (!portcfg.weather_fix) {
+                DSB(DS_last_surface) = DSB(DS_surface_under_car);
             }
-            DSB(DS_last_surface) = DSB(DS_surface_under_car);
+            /* ENH --weather-fix: when in external view, keep the transition pending so it fires on return. */
         }
         if (DSB(DS_protection_ok) == 0 && DSB(DS_clock_min) == 2) {   /* demo limit */
             message_box(0x1f);                                 /* "Your time is up..." */
@@ -174,7 +187,7 @@ void race_run(void)
         /* frame pacing. PORT (PLAN.md decision 4): the original waits for 5 ticks; the port waits for
          * host_frame_ticks() ticks (default 29, --frame-ticks), DS:B70E keeps the measured ticks. */
         while ((u16)(DSW(DS_tick_count) - now) < (u16)host_frame_ticks()) {
-            random();
+            td3_random();
             host_pump();
         }
     }
@@ -218,6 +231,57 @@ void car_leg_reset(void)
     mouse_set_pos(0xa0, 100);
 }
 
+/* ENH: choose the computer cars for the whole course. The original derived both opponents from the
+ * player's slot on every leg (DS_opp*_slot = player ^ 1, or slots 0/1/2), so the three-car game never
+ * used the two expansion cars against you. Here the slots are drawn once from the other cars on the
+ * play disk and kept in DS_opp1_slot / DS_opp2_slot; stage_load_objects() reloads those slots on each
+ * leg, so a leg change (or a restart within a leg) keeps the same two rivals. */
+void race_opponents_pick(void)
+{
+    u8 others[14];                                     /* DS_car_slots holds at most 14 cars */
+    u8 n = 0;
+    u8 player = (u8)DSW(DS_car_index);
+    u8 installed = DSB(DS_cars_on_disk);
+
+    if (!portcfg.random_rivals) {
+        /* ENH option off: the original's three-car selection, made here once for the whole course.
+         * DSW(DS_car_index) cannot change while a course runs, so this is the same on every leg. */
+        DSB(DS_opp1_slot) = 0;
+        DSB(DS_opp2_slot) = 0;
+        if (installed > 1) {
+            if (installed == 2) {
+                DSB(DS_opp1_slot) = (u8)(player ^ 1);
+                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
+            } else {
+                DSB(DS_opp1_slot) = 0;
+                DSB(DS_opp2_slot) = 1;
+                if (player == 0) DSB(DS_opp1_slot) = 2;
+                if (player == 1) DSB(DS_opp2_slot) = 2;
+            }
+        }
+        return;
+    }
+    if (DSB(DS_protection_ok) == 0 || DSB(DS_race_computer_cars) == 0) {
+        DSB(DS_opp1_slot) = 0;
+        DSB(DS_opp2_slot) = 0;
+        return;
+    }
+    /* every slot of the play disk, by the game's own empty-slot test (car_lst_load: a filled slot starts
+     * with 'C'), not only the first cars_on_disk: a removed car can leave a gap before the last one */
+    for (u8 slot = 0; slot < 14; slot++) {
+        if (slot != player && DSB((u16)(slot * 6 + DS_car_slots)) == 'C') others[n++] = slot;
+    }
+    if (n == 0) {                                      /* no other car installed: keep the player's */
+        DSB(DS_opp1_slot) = player;
+        DSB(DS_opp2_slot) = player;
+        return;
+    }
+    u8 first = (u8)(td3_random() % n);
+    DSB(DS_opp1_slot) = others[first];
+    others[first] = others[--n];                       /* do not give both rivals the same car */
+    DSB(DS_opp2_slot) = (n == 0) ? DSB(DS_opp1_slot) : others[td3_random() % n];
+}
+
 /* 0792:0d2e stage_load_objects — game_flow.md §4.14 (leg sprites, map, tiles, object sets, car and opponents) */
 void stage_load_objects(void)
 {
@@ -254,21 +318,10 @@ void stage_load_objects(void)
     }
     flow_strcpy(DS_path_car + 7, 0x11C5);                      /* ".POB" */
     file_load_far(DS_path_car, ds_far(DS_car_pob));
-    DSB(DS_opp2_slot) = 0;
-    DSB(DS_opp1_slot) = 0;
+    /* ENH: the slots were picked once for the course by race_opponents_pick(); the original recomputed
+     * them from DS_car_index here on every leg, which confined the rivals to the three original cars. */
     if (DSB(DS_protection_ok) != 0 && DSB(DS_race_computer_cars) != 0 && DSB(DS_menu_preview) == 0) {
         u16 f;
-        if (DSB(DS_cars_on_disk) > 1) {
-            if (DSB(DS_cars_on_disk) == 2) {
-                DSB(DS_opp1_slot) = (u8)(DSB(DS_car_index) ^ 1);
-                DSB(DS_opp2_slot) = DSB(DS_opp1_slot);
-            } else {
-                DSB(DS_opp1_slot) = 0;
-                DSB(DS_opp2_slot) = 1;
-                if (DSW(DS_car_index) == 0) DSB(DS_opp1_slot) = 2;
-                if (DSW(DS_car_index) == 1) DSB(DS_opp2_slot) = 2;
-            }
-        }
         flow_strcpy(DS_path_opponent + 2, (u16)(DSB(DS_opp1_slot) * 6 + DS_car_slots));
         flow_strcpy(DS_path_opponent + 7, 0x11CA);             /* ".LST" */
         f = crt_fopen(DS_path_opponent, 0x11CF);               /* "rb" */
@@ -301,6 +354,8 @@ void leg_map_load(void)
         DSB(DS_path_scene + 9) = (u8)(DSB(DS_leg_index) + 'A');
         flow_strcpy(DS_path_scene + 10, 0x11E4);               /* ".DAT" */
         file_load_near(DS_path_scene, DS_leg_file);
+        if (portcfg.weight > 1)
+            DSW(DS_leg_gravity) = (u16)(DSW(DS_leg_gravity) * (u16)portcfg.weight);  /* ENH: --weight */
     }
     if (DSB(DS_protection_ok) == 0 || DSB(DS_race_computer_cars) == 0 || DSB(DS_menu_preview) != 0) {
         DSW(DS_obj_flags + 2) = 0x2f;                          /* DS:A47B: opponents not racing */

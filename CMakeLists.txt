@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(testdrive3_enhanced VERSION 0.2.0 LANGUAGES C)
+project(testdrive3_enhanced VERSION 0.3.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -19,6 +19,10 @@ file(GLOB_RECURSE TD_ENHANCED_SOURCES CONFIGURE_DEPENDS src/enhanced/*.c)
 add_executable(testdrive3-enhanced ${TD_SOURCES})
 target_include_directories(testdrive3-enhanced PRIVATE src)
 target_link_libraries(testdrive3-enhanced PRIVATE SDL3::SDL3 nuked_opl3)
+
+if(UNIX)
+    target_link_libraries(testdrive3-enhanced PRIVATE m)
+endif()
 if(MSVC)
     target_compile_options(testdrive3-enhanced PRIVATE /W3)
 else()

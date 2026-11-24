@@ -94,6 +94,7 @@ int game_main(void)
         case 5: {
             /* ---- §4.1.1: legs x players and the results arithmetic (inline in main) ---- */
             playdisk_verify();
+            race_opponents_pick();                          /* ENH: two random rivals, fixed for all legs */
             DSB(DS_leg_index) = 0;
             {   /* ENH developer aid: TD3_START_LEG=n starts the race at leg n (0-based) */
                 const char *e = SDL_getenv("TD3_START_LEG");
@@ -428,7 +429,7 @@ void nop_1518(void) {}
 void nop_151a(void) {}
 
 /* 0000:0f58 random — game_flow.md §4.4 (verified) */
-u16 random(void)
+u16 td3_random(void)
 {
     u32 seed = (u32)DSW(DS_rand_hi) << 16 | DSW(DS_rand_lo);
     seed = seed * 0x41C64E6Du + 0x3039u;                   /* u32 wrap */

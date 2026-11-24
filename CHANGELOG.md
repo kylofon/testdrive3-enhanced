@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Draw distance up to 8 cells, across the map's seams, with the cars beyond the game's own range.
+- Random rival cars (`--random-rivals`), car weight (`--weight`), original far models (`--far-lod`).
+- Fixes: weather triggers (`--weather-fix`), traffic freezing at some lane ends.
+- Linux build. Thanks to Miragecoder.
+
 ## 0.2.0
 
 - Distance fog per pixel: the scenery sinks gradually into the fog instead of face by face; stronger by default (70 %).

@@ -20,7 +20,8 @@
 #define ENH_PITCH_SMOOTH_MS   60.0     /* low-pass on the camera pitch (horizon row) */
 #define ENH_DEFAULT_HAZE      70       /* distance fog: percent of the horizon's sky colour at the far edge */
 #define ENH_DEFAULT_DRAW_DIST 7        /* draw distance in map cells (enh_far.c; 0 = the game's own cells only) */
-#define ENH_MAX_DRAW_DIST     7        /* 16-bit vertex coordinates reach 8 cells from the camera */
+#define ENH_MAX_DRAW_DIST     8        /* the map is a 32 x 16 torus: its nearest images reach only 8 cells north /
+                                          south, so a larger radius would end short of the fog in those directions */
 #define ENH_DEFAULT_FOG_START 10       /* where the fog begins: percent of the way to its full distance */
 #define ENH_DEFAULT_BEAM_NIGHT 100     /* headlight beams' strength at night, percent */
 #define ENH_DEFAULT_BEAM_DAY   35      /* ... by day (in rain or snow): the day palette's lit colours are far
@@ -38,14 +39,15 @@
 void enh_init(bool enabled, int res_scale, int aa, int motion_delay, int haze, int draw_dist);
 /* main.c: fog_start 0..90 (percent of the fog's full distance); lights = the enhanced headlight beams (off:
  * full strength with a hard edge, as the original), their strengths 0..100 (percent), beam_soft
- * 0..ENH_MAX_BEAM_SOFT (view pixels). */
-void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft);
+ * 0..ENH_MAX_BEAM_SOFT (view pixels); far_lod = keep the original's reduced far models beyond 200h. */
+void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft, bool far_lod);
 
 /* world_build_visible (render_world.c): the world is built anew (begin), cell c of the leg map is built. */
 void enh_world_begin(void);
 void enh_world_cell(u16 c);
 void enh_drift_far_sprites(void);          /* drifting sprites the far ring shows, after sprite_animate */
 bool enh_enabled(void);
+bool enh_far_lod_enabled(void);       /* --far-lod 1: the original's reduced far models in the enhanced view too */
 int  enh_res_scale(void);             /* the output scale (1 with --classic unless --res-scale says otherwise) */
 
 /* sprites_prescale (flow_race.c stage_load_objects): the raw sprite set is at DS:2500 and the pre-scaled

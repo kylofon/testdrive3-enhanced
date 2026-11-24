@@ -329,6 +329,8 @@ s16 shared_scene_load(void)
     file_load_far(DS_path_program, ds_far(DS_lanes_set));
     flow_strcpy(DS_path_program + 9, 0x116E);                  /* "SCENETTA.DAT" */
     file_load_near(DS_path_program, DS_leg_file);
+    if (portcfg.weight > 1)
+        DSW(DS_leg_gravity) = (u16)(DSW(DS_leg_gravity) * (u16)portcfg.weight);  /* ENH: --weight */
     flow_strcpy(DS_path_program + 9, 0x1174);                  /* "SCENETT1.DAT" */
     file_load_near(DS_path_program, DS_sprite_set);
     sprites_prescale();

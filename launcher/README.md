@@ -28,6 +28,15 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
   * **Finish direction on the compass** (`--finish-marker`, on by default): a green mark on the compass points
     to the leg's gas station. Stored as `FinishMarker` in `settings.ini`.
+  * **Random rival cars** (`--random-rivals`, on by default): the two computer opponents drive a pair of cars
+    drawn from the other cars on the play disk, including the expansion cars, and keep them for the whole course.
+    Off: the original's selection from the three-car game. Stored as `RandomRivals` in `settings.ini`.
+  * **Weather trigger fix** (`--weather-fix`, on by default): gives wind, rain and snow their own trigger
+    direction and keeps a weather trigger crossed during an external view. Off: the original's shared
+    direction, which can make rain or snow fail to deactivate. Stored as `WeatherFix` in `settings.ini`.
+  * **Car weight** (`--weight`, default 1): a gravity multiplier that keeps cars planted over hills. `1x` is
+    the original; `2x` and `3x` make the car heavier (less air over crests, faster fall, more climbing
+    resistance and grip). Stored as `Weight` in `settings.ini`.
 * **Graphics**: a summary of the picture settings and the **Graphics** button (as Game settings > Graphics).
 * **Play** starts the game; the launcher stays open.
 
@@ -43,15 +52,18 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * Sliders, each with a number field beside it to type the value (kept in step with the slider):
     * **Motion** (`--motion-delay`, 0-100 %, default 100: moves between the game's last two frames, never
       guesses; less guesses ahead, which answers sooner but overshoots when the steering changes).
-    * **Draw distance** (`--draw-distance`, 0-7 cells around the camera, default 7; 0 is the game's own).
+    * **Draw distance** (`--draw-distance`, 0-8 cells around the camera, default 7 — 8 is as far as the wrapping 32×16 leg map reaches north and south; 0 is the game's own, with its 3/6/10 cells). The far cells also carry their trees and the other cars, including across the map's west/east and north/south seams.
     * **Fog** (`--haze`, 0-100 % of the sky's colour at the edge of the view, default 70; 0 = off).
     * **Fog begins** (`--fog-start`, 0-90 % of the way to where it is full, default 10).
+    * **Use original far models at distance** (`--far-lod`, off by default): the enhanced view normally draws the
+      full-detail models at every distance; on, vehicles and some buildings use the original's reduced far models
+      beyond half a map cell.
     * **Lights**: **Enhanced lights** (`--enh-lights`, on by default; off gives the original's beams, full
       strength with a hard edge) and, under it, the headlight beams **At night** (`--beam-night`, default 100 %), **By day** (`--beam-day`, default 35 %:
       the game switches them on in rain and snow) and **Soft edge** (`--beam-soft`, 0-10 of the original's
       pixels, default 3; 0 = the original's hard edge).
-  Stored as `Classic`, `Resolution`, `AntiAliasing`, `EnhancedLights`, `Motion`, `DrawDistance`, `Haze`, `FogStart`,
-  `BeamNight`, `BeamDay` and `BeamSoft`.
+  Stored as `Classic`, `Resolution`, `AntiAliasing`, `EnhancedLights`, `FarLod`, `Motion`, `DrawDistance`, `Haze`,
+  `FogStart`, `BeamNight`, `BeamDay` and `BeamSoft`.
 * **Game settings > Key Bindings** shows the game's keys in the window, in three groups (driving, car, views and
   game). Click a key and press the new one ("Press new key"; Shift, Ctrl or Alt can be held with it, Esc
   cancels, **No key** leaves the action without one). A key already used by another action can be moved,

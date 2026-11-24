@@ -20,9 +20,21 @@ void enh_world_cell(u16 c) { game_cell[c & 0x1FF] = true; }
 
 static EnhSnap *F;
 
-#define FAR_REACH 0x7A00                                  /* x4 units from the camera: 16-bit coordinates wrap at 8000h */
+/* x4 units from the camera the ring may reach (one cell past its radius, for models that overhang their cell).
+ * Offsets are 32-bit, so this is no longer tied to the 16-bit wrap of the game's vertex arrays. */
+static int F_reach;
 
-static void emit(u16 es, u16 a, int nf, int nv, u16 px, u16 pz, u16 py, u8 rot, s8 shear);
+/* The leg map is a torus: X wraps at 8000h (32 cells), Z at 4000h (16 cells). Return d moved to the nearest
+ * image of the object, in (-period/2, period/2]. Cell centres and positions are in the same position units. */
+static int wrap_delta(int d, int period)
+{
+    int half = period / 2;
+    d %= period;
+    if (d < 0) d += period;
+    return d >= half ? d - period : d;
+}
+
+static void emit(u16 es, u16 a, int nf, int nv, int px, int pz, u16 py, u8 rot, s8 shear);
 
 /* 0e12:7653 vertex_rotate on the model's arrays A (height), B, C at si, stride 2 nv */
 static void rotate(u16 es, u16 si, u16 stride, u8 rot, s8 shear, s16 *a_out, s16 *b_out, s16 *c_out)
@@ -64,21 +76,21 @@ static u16 face_pair(u8 c1, u8 c2)
 }
 
 /* a sprite of the far ring (not in the game's list: instance FFFFh) */
-static void add_sprite(u16 inst, u16 id, u16 x, u16 y, u16 z)
+static void add_sprite(u16 inst, u16 id, int x, u16 y, int z)
 {
     if (F->nspr >= ENH_MAX_SPRITES_ALL) return;
-    if (abs((s16)(u16)((u16)(x << 2) - F->cam_x4)) > FAR_REACH || abs((s16)(u16)((u16)(z << 2) - F->cam_z4)) > FAR_REACH)
-        return;
+    int cx4 = (int)F->cam_x * 4, cz4 = (int)F->cam_z * 4;
+    if (abs(x * 4 - cx4) > F_reach || abs(z * 4 - cz4) > F_reach) return;
     EnhSpr *e = &F->spr[F->nspr++];
     e->inst = inst;
     e->id = id;
-    e->x = (s16)x; e->y = (s16)y; e->z = (s16)z;
+    e->x = x; e->y = y; e->z = z;
 }
 
 /* model_place's sprite children of a tile (trees, signs...): after the faces, placed by quarter turns, those
  * from id 12h on thinned by the vegetation seed rotated by the cell's position, exactly as the game does, so
  * that a cell looks the same when the game builds it itself */
-static void children(u16 es, u16 si, u16 px, u16 pz, u16 py, u8 rot)
+static void children(u16 es, u16 si, int px, int pz, u16 py, u8 rot)
 {
     int nc = rd8(es, (u16)(si + 2));
     u16 c = (u16)(si + 4 + rd8(es, si) * 8 + rd8(es, (u16)(si + 1)) * 6);
@@ -98,13 +110,43 @@ static void children(u16 es, u16 si, u16 px, u16 pz, u16 py, u8 rot)
             else if (rot == 0x80) { x = (u16)-x; z = (u16)-z; }
             else                  { u16 t = x; x = (u16)-z; z = t; }
         }
-        if (id) add_sprite(0xFFFF, id, (u16)(x + px), (u16)(h + py), (u16)(z + pz));
+        if (id) add_sprite(0xFFFF, id, x + px, (u16)(h + py), z + pz);
     }
+}
+
+/* obj_model_ptr (render_object.c): the model of a moving vehicle by the low bits of its flags. Vehicles use the
+ * 8-byte model header (vertices at +8), unlike the static objects model_place places at +4. Unless --far-lod is
+ * on, this is the same near model the game builds when the car is in its window. */
+static FarPtr vehicle_model(u16 flags)
+{
+    u16 m = flags & 0x3F;
+    if (m > 3) {
+        u16 es = DSW(DS_objects_set + 2), base = DSW(DS_objects_set);
+        return far_make(es, (u16)(rd16(es, (u16)(base + 2 * m)) + base));
+    }
+    if (m == 3) return ds_ptr(0xD7A4);
+    if (m == 2) return ds_ptr(0xCEBC);
+    return ds_far(DS_car_pob);
+}
+
+/* The 8-byte model header's face count, as obj_emit_vehicle reads it: the near model's nf / nv at +0 / +1 with
+ * vertices at +8, or, with --far-lod beyond 200h (Manhattan), the far model's at +4 / +5, its vertex offset at
+ * +6 and vertices at +8 + offset. Writes the vertex count and the vertex offset; returns the face count. */
+static int model_header(FarPtr p, u16 dist, int *nv, u16 *voff)
+{
+    if (enh_far_lod_enabled() && dist > 0x200) {
+        *nv = rd8(p.seg, (u16)(p.off + 5));
+        *voff = (u16)(p.off + 8 + rd16(p.seg, (u16)(p.off + 6)));
+        return rd8(p.seg, (u16)(p.off + 4));
+    }
+    *nv = rd8(p.seg, (u16)(p.off + 1));
+    *voff = (u16)(p.off + 8);
+    return rd8(p.seg, p.off);
 }
 
 /* model_place (0e12:72f8) without its sprite children: model al of the tiles (kind 0) or the objects (kind 1) at
  * place x / z (position units), height y, rotation and shear */
-static void place(u8 al, int kind, u16 px, u16 pz, u16 py, u8 rot, s8 shear)
+static void place(u8 al, int kind, int px, int pz, u16 py, u8 rot, s8 shear)
 {
     u16 es, set, bx, cut = 0;
     if (kind) {
@@ -127,20 +169,21 @@ static void place(u8 al, int kind, u16 px, u16 pz, u16 py, u8 rot, s8 shear)
 }
 
 /* the vertices at a (arrays A, B, C) and the nf faces after them of a model placed at px, pz (position
- * units), height py; dropped whole if a vertex would lie beyond FAR_REACH of the camera (16-bit wrap) */
-static void emit(u16 es, u16 a, int nf, int nv, u16 px, u16 pz, u16 py, u8 rot, s8 shear)
+ * units), height py; dropped whole if a vertex would lie beyond the ring's reach of the camera */
+static void emit(u16 es, u16 a, int nf, int nv, int px, int pz, u16 py, u8 rot, s8 shear)
 {
     if (nf <= 0 || nv <= 0 || F->nfv + nv > ENH_MAX_FAR_VERTS || F->nff + nf > ENH_MAX_FAR_FACES) return;
     int base = F->nfv;
-    u16 stride = (u16)(nv * 2), x4 = (u16)(px << 2), z4 = (u16)(pz << 2);
+    u16 stride = (u16)(nv * 2);
+    int cx4 = (int)F->cam_x * 4, cz4 = (int)F->cam_z * 4;
+    int x4 = (int)px * 4, z4 = (int)pz * 4;
     for (int k = 0; k < nv; k++) {
         s16 va, vb, vc;
         rotate(es, (u16)(a + 2 * k), stride, rot, shear, &va, &vb, &vc);
         F->fvy[base + k] = (s16)(va + py);
-        F->fvx[base + k] = (s16)(vb + x4);
-        F->fvz[base + k] = (s16)(vc + z4);
-        if (abs((s16)(u16)(F->fvx[base + k] - F->cam_x4)) > FAR_REACH ||
-            abs((s16)(u16)(F->fvz[base + k] - F->cam_z4)) > FAR_REACH) return;   /* nothing kept */
+        F->fvx[base + k] = vb + x4 - cx4;
+        F->fvz[base + k] = vc + z4 - cz4;
+        if (abs(F->fvx[base + k]) > F_reach || abs(F->fvz[base + k]) > F_reach) return;   /* nothing kept */
     }
     F->nfv += nv;
     u16 f = (u16)(a + 3 * stride);
@@ -163,7 +206,7 @@ static void emit(u16 es, u16 a, int nf, int nv, u16 px, u16 pz, u16 py, u8 rot, 
 static double key_depth(int v)
 {
     int i = v - F->nv;
-    double dx = (s16)(u16)(F->fvx[i] - F->cam_x4), dz = (s16)(u16)(F->fvz[i] - F->cam_z4);
+    double dx = F->fvx[i], dz = F->fvz[i];                  /* already offsets from the camera */
     return fabs((double)F->fvy[i] - F->cam_y) + sqrt(dx * dx + dz * dz);
 }
 
@@ -199,7 +242,7 @@ void enh_drift_far_sprites(void)
         u16 i = (u16)(DSW(DS_spr_inst + 2 * k) >> 1);
         if (i < 320) listed[i] = true;
     }
-    int R = enh_draw_dist, ccol = DSB(DS_cam_x + 1) >> 2, crow = 15 - (DSB(DS_cam_z + 1) >> 2);
+    int R = enh_draw_dist, cam_x = DSW(DS_cam_x), cam_z = DSW(DS_cam_z);
     int n = DSW(DS_sprite_count);
     static double plane_acc[320][2];                          /* the aeroplane's fraction of a unit, z / x */
     s16 dz = DSS(DS_sprite_drift_z), dx = DSS(DS_sprite_drift_x);
@@ -213,8 +256,9 @@ void enh_drift_far_sprites(void)
             if (id & 0x40) z = (u16)(z - dz);                 /* the aeroplane: undo the game's step */
             if (id & 0x80) x = (u16)(x - dx);
         } else {
-            int dc = (x >> 10) - ccol, dr = (15 - (z >> 10)) - crow;
-            if (dc * dc + dr * dr > R * R + R) continue;      /* as the ring's sprites (enh_far_build) */
+            int dx = wrap_delta((int)x - cam_x, 0x8000), dz = wrap_delta((int)z - cam_z, 0x4000);
+            long long limit = (long long)(R + 1) * 0x400;
+            if ((long long)dx * dx + (long long)dz * dz > limit * limit) continue;  /* as enh_far_build */
         }
         if (plane) {                                          /* ENH_PLANE_SPEED of the step, with its fraction */
             double *a = plane_acc[i];
@@ -234,51 +278,60 @@ void enh_far_build(EnhSnap *s)
     F = s;
     s->nfv = s->nff = 0;
     s->nspr = s->nspr_game;
+    for (int o = 0; o < s->nobj && o < ENH_MAX_OBJS; o++) s->obj[o].far_base = s->obj[o].far_count = 0;
     if (enh_draw_dist <= 0 || s->menu_preview) return;
-    int R = enh_draw_dist;
-    int ccol = DSB(DS_cam_x + 1) >> 2, crow = 15 - (DSB(DS_cam_z + 1) >> 2);
-    /* cells farthest first, so that a full buffer drops the far ones */
-    int cells[(2 * 8 + 1) * (2 * 8 + 1)], nc = 0;
-    double cx = DSW(DS_cam_x) / 1024.0, cz = DSW(DS_cam_z) / 1024.0;   /* the camera in cells */
-    for (int dr = -R - 1; dr <= R + 1; dr++)
-        for (int dc = -R - 1; dc <= R + 1; dc++) {
-            int col = ccol + dc, row = crow + dr;
-            if (col < 0 || col > 31 || row < 0 || row > 15) continue;
-            /* the cell's centre within R cells of the camera, and all of it (half a cell, and a quarter for
-             * what overhangs) within 7.5 cells on each axis */
-            double ex = col + 0.5 - cx, ez = (15 - row) + 0.5 - cz;
-            if (ex * ex + ez * ez > (double)R * R) continue;
-            if (fabs(ex) > 6.75 || fabs(ez) > 6.75) continue;
+    int R = enh_draw_dist, cam_x = DSW(DS_cam_x), cam_z = DSW(DS_cam_z);
+    F_reach = (R + 1) * 0x1000;
+    long long limit = (long long)R * 0x400;
+    limit *= limit;                                            /* squared, in position units */
+
+    /* Every canonical cell has exactly one image nearest the camera on the torus. Build the near ones first so
+     * that a full buffer drops the far ones. */
+    struct Cell {
+        int c, px, pz;                                         /* cell index and the image's centre position */
+        u8 ch_x, cz;                                           /* the canonical cell bytes objects are matched by */
+        int xs, zs;                                            /* image position - canonical position */
+        long long d;
+    } cells[512];
+    int nc = 0;
+    for (int row = 0; row < 16; row++)
+        for (int col = 0; col < 32; col++) {
             int c = col + row * 32;
             if (game_cell[c]) continue;
-            cells[nc++] = c;
+            int canon_px = col * 0x400 + 0x200, canon_pz = (15 - row) * 0x400 + 0x200;
+            int dx = wrap_delta(canon_px - cam_x, 0x8000), dz = wrap_delta(canon_pz - cam_z, 0x4000);
+            long long d2 = (long long)dx * dx + (long long)dz * dz;
+            if (d2 > limit) continue;
+            if (fabs((double)dx / 1024.0) > R + 0.75 || fabs((double)dz / 1024.0) > R + 0.75) continue;
+            struct Cell *e = &cells[nc++];
+            e->c = c; e->px = cam_x + dx; e->pz = cam_z + dz;
+            e->ch_x = (u8)(col << 2); e->cz = (u8)((15 - row) << 2);
+            e->xs = e->px - canon_px; e->zs = e->pz - canon_pz;
+            e->d = d2;
         }
-    for (int i = 1; i < nc; i++)                               /* nearest first */
-        for (int j = i; j > 0; j--) {
-            int a = cells[j], b = cells[j - 1];
-            int da = ((a & 31) - ccol) * ((a & 31) - ccol) + ((a >> 5) - crow) * ((a >> 5) - crow);
-            int db = ((b & 31) - ccol) * ((b & 31) - ccol) + ((b >> 5) - crow) * ((b >> 5) - crow);
-            if (da >= db) break;
-            cells[j] = b; cells[j - 1] = a;
-        }
+    for (int i = 1; i < nc; i++) {                             /* nearest first */
+        struct Cell t = cells[i];
+        int j = i;
+        while (j > 0 && cells[j - 1].d > t.d) { cells[j] = cells[j - 1]; j--; }
+        cells[j] = t;
+    }
     for (int i = 0; i < nc; i++) {
-        int c = cells[i], col = c & 31, row = c >> 5;
-        u16 m = DSW(DS_leg_map + 2 * c);
-        u16 px = (u16)(col * 0x400 + 0x200), pz = (u16)((15 - row) * 0x400 + 0x200);
-        place((u8)m, 0, px, pz, (u16)(m & 0x3F00), (u8)((m >> 8) & 0xC0), 0);
-        /* its static objects, as world_build_visible selects them */
-        u8 ch_x = (u8)(col << 2), cz = (u8)((15 - row) << 2);
+        const struct Cell *cl = &cells[i];
+        u16 m = DSW(DS_leg_map + 2 * cl->c);
+        place((u8)m, 0, cl->px, cl->pz, (u16)(m & 0x3F00), (u8)((m >> 8) & 0xC0), 0);
+        /* its static objects, matched in the canonical cell but placed in the image nearest the camera */
         s16 lim = (s16)(2 * DSW(DS_obj_first_static) - 2);
         for (s16 so = (s16)(2 * DSW(DS_obj_count) - 2); so >= lim && so >= 0; so -= 2) {
             u16 o = (u16)so;
-            if ((u8)(DSB(DS_obj_x + o + 1) & 0x7C) != ch_x) continue;
+            if ((u8)(DSB(DS_obj_x + o + 1) & 0x7C) != cl->ch_x) continue;
             u16 z = DSW(DS_obj_z + o);
-            if ((u8)((z >> 8) & 0x3C) != cz) continue;
+            if ((u8)((z >> 8) & 0x3C) != cl->cz) continue;
             u16 f = DSW(DS_obj_flags + o);
             if ((f >> 8) & 0x30) continue;                     /* moving / parked */
             if ((f & 0x3F) == 0) continue;
-            place((u8)f, 1, DSW(DS_obj_x + o), z, (u16)(DSW(DS_obj_y8 + o) >> 3),
-                  (u8)((DSW(DS_obj_heading + o) >> 8) & 0xC0), (s8)(DSW(DS_obj_pitch + o) >> 8));
+            place((u8)f, 1, (int)DSW(DS_obj_x + o) + cl->xs, (int)z + cl->zs,
+                  (u16)(DSW(DS_obj_y8 + o) >> 3), (u8)((DSW(DS_obj_heading + o) >> 8) & 0xC0),
+                  (s8)(DSW(DS_obj_pitch + o) >> 8));
         }
     }
     /* parked objects (houses, boats: 1000h set, 2000h clear) that the game draws only within its window
@@ -288,15 +341,36 @@ void enh_far_build(EnhSnap *s)
         if ((f & 0x3000) != 0x1000 || (f & 0x3F) <= 3) continue;
         if ((f >> 8) == 0x1F) continue;             /* the lightning bolt: the game shows it itself, in a storm */
         if (DSW(DS_obj_vert_count + 2 * o) != 0) continue;          /* the game's own */
-        u16 x = DSW(DS_obj_x + 2 * o), z = DSW(DS_obj_z + 2 * o);
-        double ex = x / 1024.0 - cx, ez = z / 1024.0 - cz;
-        if (ex * ex + ez * ez > (double)R * R) continue;
+        int x = DSW(DS_obj_x + 2 * o), z = DSW(DS_obj_z + 2 * o);
+        int dx = wrap_delta(x - cam_x, 0x8000), dz = wrap_delta(z - cam_z, 0x4000);
+        if ((long long)dx * dx + (long long)dz * dz > limit) continue;
         u16 es = DSW(DS_objects_set + 2), set = DSW(DS_objects_set);
         if (es == 0) continue;
         u16 p = (u16)(rd16(es, (u16)(set + 2 * (f & 0x3F))) + set);
-        int nf = rd8(es, p), nv = rd8(es, (u16)(p + 1));
-        emit(es, (u16)(p + 8), nf, nv, x, z, (u16)(DSW(DS_obj_y8 + 2 * o) >> 3),
+        int nv; u16 voff;
+        int nf = model_header(far_make(es, p), (u16)(abs(dx) + abs(dz)), &nv, &voff);
+        emit(es, voff, nf, nv, cam_x + dx, cam_z + dz, (u16)(DSW(DS_obj_y8 + 2 * o) >> 3),
              (u8)(DSW(DS_obj_heading + 2 * o) >> 8), (s8)(DSW(DS_obj_pitch + 2 * o) >> 8));
+    }
+
+    /* Moving vehicles the game left out of its small visibility window (sim_traffic.c: the ranges are zeroed,
+     * but the position / heading were updated just before). The game keeps the same model alive, so a car does
+     * not appear with a different shape when it crosses into the window. Object 0 is the player's car (skipped
+     * in the cockpit view anyway) and is never part of the scenery. */
+    for (int o = 1; o < s->nobj && o < ENH_MAX_OBJS; o++) {
+        EnhObj *e = &s->obj[o];
+        if (!(e->flags & 0x2000) || e->vcount) continue;
+        int dx = wrap_delta((int)e->x - cam_x, 0x8000), dz = wrap_delta((int)e->z - cam_z, 0x4000);
+        if ((long long)dx * dx + (long long)dz * dz > limit) continue;
+        FarPtr p = vehicle_model(e->flags);
+        if (far_is_null(p)) continue;
+        int nv; u16 voff;
+        int nf = model_header(p, (u16)(abs(dx) + abs(dz)), &nv, &voff);
+        int base = F->nfv;
+        e->far_x = cam_x + dx; e->far_z = cam_z + dz;
+        emit(p.seg, voff, nf, nv, e->far_x, e->far_z, (u16)(e->y8 >> 3),
+             (u8)(e->heading >> 8), (s8)(DSW(DS_obj_pitch + 2 * o) >> 8));
+        if (F->nfv > base) { e->far_base = (u16)base; e->far_count = (u16)(F->nfv - base); }
     }
 
     /* the leg's own sprites (trees, rocks, animals: instances 9 .. sprite_count - 1) that the game lists only
@@ -308,10 +382,10 @@ void enh_far_build(EnhSnap *s)
     for (int i = 9; i < n && i < 320; i++) {
         u16 id = DSW(DS_sprite_id + 2 * i);
         if (!id || listed[i]) continue;
-        u16 x = DSW(DS_sprite_x + 2 * i), z = DSW(DS_sprite_z + 2 * i);
-        int dc = (x >> 10) - ccol, dr = (15 - (z >> 10)) - crow;
-        if (dc * dc + dr * dr > R * R + R) continue;
-        add_sprite((u16)i, id, x, DSW(DS_sprite_y + 2 * i), z);
+        int x = DSW(DS_sprite_x + 2 * i), z = DSW(DS_sprite_z + 2 * i);
+        int dx = wrap_delta(x - cam_x, 0x8000), dz = wrap_delta(z - cam_z, 0x4000);
+        if ((long long)dx * dx + (long long)dz * dz > limit) continue;
+        add_sprite((u16)i, id, cam_x + dx, DSW(DS_sprite_y + 2 * i), cam_z + dz);
     }
 
     /* farthest first */

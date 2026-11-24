@@ -133,10 +133,12 @@ view time (for the haze, and for sprites against points and lines, see Sprites).
 The ground-slope, surface, crash and bump tests of the face drawer stay in the original renderer: the enhanced
 one only draws.
 
-`ENH:` no far LOD. Vehicles and some buildings (barn, hangar, houses) have a far model with fewer faces that
-`539d` / `52a3` use more than 200h (Manhattan, from the car) away; with the enhanced view on, the game always
-builds the near model (`far_lod` in `render_object.c`), since at the enhanced resolution the missing detail
-shows and the cost does not matter. `--classic` keeps the original's switch. The detail level's own choices
+`ENH:` no far LOD by default. Vehicles and some buildings (barn, hangar, houses) have a far model with fewer
+faces that `539d` / `52a3` use more than 200h (Manhattan, from the car) away; with the enhanced view on, the
+game always builds the near model (`far_lod` in `render_object.c`), since at the enhanced resolution the missing
+detail shows and the cost does not matter. `--far-lod 1` restores the original's reduced far models in the
+enhanced view too; the far ring then picks the same far model, so a car does not change shape when it crosses
+into the game's own window. `--classic` keeps the original's switch regardless. The detail level's own choices
 (cells, trees, sprite range, F2) are unchanged.
 
 ## Sprites
@@ -232,11 +234,15 @@ only up to C00h / 1100h / 1C00h (`B6E2`, by detail): scenery appears a few hundr
 hold 1600 vertices and faces, its physics reads the ground from the renderer, so it is not asked for more.
 
 `ENH:` the enhanced view builds the rest itself (`enh_far.c`), for every game frame, read-only: every map cell
-whose centre is within `--draw-distance` cells of the camera (default 7) and which lies wholly within 7.5 cells
-of it on each axis (vertex coordinates are 16-bit, x4 units: they wrap 8 cells from the camera, and a wrapped
-vertex made a face across the sky; a model with a vertex beyond `FAR_REACH` is dropped whole) that the
-game did not build (`enh_world_begin` / `enh_world_cell` record its cells in `world_build_visible`), from the
-same tile and object models as `model_place`: the vertices rotated as `vertex_rotate`, the faces coloured as
+whose centre is within `--draw-distance` cells of the camera (default 7, at most 8: the 32×16 torus's nearest images reach 8 cells north and south, and the fog is round)
+that the game did not build (`enh_world_begin` / `enh_world_cell` record its cells in `world_build_visible`),
+from the same tile and object models as `model_place`. The map wraps every 32 cells in X and 16 in Z: the ring
+picks each cell's nearest image across those seams, as the game's own wrapped cell table does, so a cell just
+over the west edge is drawn next to the camera on the east even when the heading table does not point that way.
+Unlike the game's 16-bit x4 vertices, which folded 8 cells from the camera (a wrapped vertex made a face across
+the sky), the ring's vertices are 32-bit offsets from the snapshot's unwrapped camera, so cells far off to the
+side stay where they belong: the vertices are rotated as
+`vertex_rotate`, the faces coloured as
 `model_emit_faces`, the cell's static objects as `world_build_visible` selects them, the tiles' sprite children
 thinned by the vegetation seed exactly as the game does (so a cell looks the same when the game takes it over),
 and the leg's own sprites beyond the game's list, with their live ids. The faces are sorted farthest first by
@@ -245,15 +251,19 @@ frames). Parked objects (houses, boats: flags 1000h without 2000h), which the ga
 around the car (`509b`, `B6E0`: they appeared a cell and a half away), are added from their near model where
 the game did not emit them this frame; not the lightning bolt (flags 1Fxxh, object model 21, a white mast 1344
 units high that `509b` shows only in a storm, at random, with a sky flash: drawn always, it stood as white spikes
-over the night legs). A face of the ring that surrounds the camera is not drawn: the view runs
+over the night legs). Moving vehicles that the game culls at its own draw distance (zeroing their vertex and face
+ranges) are added too, from their live position, vertices and heading, with the same smoothing as the cars the
+game emits: they come in with the far scenery instead of popping into view when the game's window reaches them.
+A face of the ring that surrounds the camera is not drawn: the view runs
 up to a game frame behind, so just after the game moves into a new cell the view can still be in the old one,
 which the ring then holds; filled around the camera, its ground covered the sky (green flashes) and, as depth,
 hid nearby cars and scenery. They are drawn before the game's faces and leave their depth in a second, far buffer; the game's faces
 are then drawn only where they are nearer than it (with 1 % allowance), since a cell the game skipped at the
 side can be nearer than one it built ahead. Sprites reach as far as the ring (their size below the game's
 smallest copy in proportion to the angle) and are tested against both. The ring's lamps are not drawn (a lamp
-needs its owner object). Measured: at most about 4500 faces and 700 sprites in the ring; 4.2 ms a frame at the
-default 1280 × 800, 2 × 2 against 3.3 ms without it. `--draw-distance 0` draws the game's cells only.
+needs its owner object). The ring's fixed buffers hold the whole map: a headless run at 18 cells used about
+29,000 vertices and 29,000 faces, well under the 65,536 each, and about 22,000 primitives a frame against
+about 1,800 at the old 7-cell limit. `--draw-distance 0` draws the game's cells only.
 
 ## Overlays
 
@@ -344,6 +354,33 @@ the letter of that direction; outside it an arrow at the window's left or right 
 when the mark moves. The compass letters are the game's per leg (`leg_compass_offset`: they read N while
 leg A of SCENE01 heads east); the mark follows the map.
 
+## Opponent cars
+
+`ENH:` the original picks the rivals from the player's car slot on every leg (`stage_load_objects`:
+`player ^ 1`, or slots 0/1/2), so the two expansion cars (Acura NSX, Stealth R/T Turbo) are never driven by the
+computer. `race_opponents_pick()` (`flow_race.c`) now draws two different car slots from all those installed on
+the play disk except the player's, once when the course starts (`game_main`). The slots live in
+`DS_opp1_slot` / `DS_opp2_slot`, which every leg's `stage_load_objects()` uses to load the rivals' `.LST` name
+and `.POB` model; the choice therefore stays the same through all five legs, a restart, and the results. When
+only two cars are installed the opponents still share the one other car, as in the original. The cars' model
+IDs in the map (2 and 3) do not change, so the opponents keep their own route scripts and driving.
+
+The draw is on by default; `portcfg.random_rivals` (`--random-rivals 0`, or the launcher's Random rival cars
+checkbox) restores the original's three-car selection instead. That branch computes the same slots
+`stage_load_objects()` used to recompute on every leg; with a fixed player car during a course the result is
+identical. The option is independent of `--classic`.
+
+## Weather triggers
+
+`ENH:` the original weather zones (surface materials `0x1C` wind, `0x1D` rain, `0x1E` snow, `flow_race.c`)
+ramp their level up and down by sharing one direction byte (`DS_zone_dir`). Crossing a wind zone can therefore
+flip the direction a later rain or snow crossing uses, which makes deactivation flaky. The original also
+drops a weather transition that happens during an external view, because it updates `DS_last_surface` without
+applying the effect.
+
+With `portcfg.weather_fix` on (default, `--weather-fix 0` restores the original), each weather type keeps its
+own ramp direction and a transition crossed during an external view stays pending until the view returns.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
@@ -377,7 +414,11 @@ the display rate (VSync).
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
-| `--draw-distance N` | 7 | map cells drawn around the camera (0..7; 0 = the game's own cells) |
+| `--draw-distance N` | 7 | map cells drawn around the camera, with their scenery, trees and cars (0..8, 8 being the wrapping leg map's reach north and south; 0 = the game's own cells) |
+| `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
+| `--weather-fix 0\|1` | 1 | separate wind/rain/snow trigger direction and keep transitions during external view (0 = original) |
+| `--weight 1\|2\|3` | 1 | car weight/gravity multiplier (1 = original; higher keeps cars planted over hills) |
+| `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 
 ## Developer aids

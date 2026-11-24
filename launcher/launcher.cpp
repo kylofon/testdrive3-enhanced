@@ -80,8 +80,8 @@ const SliderDef SLIDERS[] = {
      0, 100, 100, &Look::motionDelay, Behind},
     {0, "DrawDistance", "&Draw distance:",
      "How far the scenery reaches: the enhanced view also draws the map cells around the camera that the game "
-     "itself leaves out (its detail level builds 3, 6 or 10 cells ahead), with their trees.",
-     0, 7, 7, &Look::drawDistance, CellsUnit},
+     "itself leaves out (its detail level builds 3, 6 or 10 cells ahead), with their trees and cars.",
+     0, 8, 7, &Look::drawDistance, CellsUnit},
     {0, "Haze", "F&og:",
      "How much of the sky's colour at the horizon the farthest scenery takes on. The scenery sinks into it "
      "gradually as it gets farther, the ground too; at 100 % the edge of the view fades out completely.",
@@ -169,6 +169,7 @@ Look LoadLook() {
     look.resScale = wxMax(MIN_RES, wxMin(MAX_RES, settings::GetInt(SECTION, "Resolution", look.resScale)));
     look.aa = wxMax(1, wxMin(MAX_AA, settings::GetInt(SECTION, "AntiAliasing", look.aa)));
     look.enhLights = settings::GetInt(SECTION, "EnhancedLights", 1) != 0;
+    look.farLod = settings::GetInt(SECTION, "FarLod", 0) != 0;
     for (const SliderDef& s : SLIDERS)
         look.*s.field = wxMax(s.min, wxMin(s.max, settings::GetInt(SECTION, s.setting, s.def)));
     return look;
@@ -179,12 +180,13 @@ void SaveLook(const Look& look) {
     settings::SetInt(SECTION, "Resolution", look.resScale);
     settings::SetInt(SECTION, "AntiAliasing", look.aa);
     settings::SetInt(SECTION, "EnhancedLights", look.enhLights ? 1 : 0);
+    settings::SetInt(SECTION, "FarLod", look.farLod ? 1 : 0);
     for (const SliderDef& s : SLIDERS) settings::SetInt(SECTION, s.setting, look.*s.field);
 }
 
 }  // namespace
 
-LauncherFrame::LauncherFrame()
+LauncherFrame::LauncherFrame(const wxString& gameDirArg)
     : wxFrame(nullptr, wxID_ANY, APP_TITLE, wxDefaultPosition, wxDefaultSize,
               wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX)) {
     SetIcons(AppIcons());
@@ -204,8 +206,8 @@ LauncherFrame::LauncherFrame()
     SetSizer(all);
     CreateMenus();
 
-    // Settings from the last run.
-    wxString dir = settings::GetString(SECTION, "GameFolder", "");
+    // Settings from the last run (command-line --game-dir takes precedence when given).
+    wxString dir = gameDirArg.empty() ? settings::GetString(SECTION, "GameFolder", "") : gameDirArg;
     wxString program = settings::GetString(SECTION, "Program", "");
     folder_->ChangeValue(dir.empty() ? DefaultGameDir() : dir);
     program_->ChangeValue(program.empty() ? DefaultProgram() : program);
@@ -220,6 +222,9 @@ LauncherFrame::LauncherFrame()
         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
     finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
+    randomRivals_->SetValue(settings::GetInt(SECTION, "RandomRivals", 1) != 0);
+    weatherFix_->SetValue(settings::GetInt(SECTION, "WeatherFix", 1) != 0);
+    weight_->SetSelection(wxMax(0, wxMin(2, settings::GetInt(SECTION, "Weight", 1) - 1)));
     ShowLook(look_);
     ShowEditedKeys();
     loading_ = false;
@@ -314,6 +319,14 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
     for (int s = MIN_SCALE; s <= MAX_SCALE; ++s) scale_->Append(wxString::Format(L"%d × %d", 320 * s, 240 * s));
     scale_->SetToolTip("The window's size when the game starts. Alt+Enter switches to full screen.");
     grid->Add(scale_, 0, wxALIGN_CENTER_VERTICAL);
+    grid->Add(new wxStaticText(ob, wxID_ANY, "Car w&eight:"), 0, wxALIGN_CENTER_VERTICAL);
+    weight_ = new wxChoice(ob, wxID_ANY);
+    weight_->Append("1x (original)");
+    weight_->Append("2x");
+    weight_->Append("3x");
+    weight_->SetToolTip("Scales gravity so cars stay planted over hills. Higher values make the car heavier "
+                        "(less air over crests, faster fall, more climbing resistance and grip).");
+    grid->Add(weight_, 0, wxALIGN_CENTER_VERTICAL);
     optionsBox->Add(grid, 0, wxLEFT | wxRIGHT | wxTOP, gap);
     fullscreen_ = new wxCheckBox(ob, wxID_ANY, "Start in f&ull screen (Alt+Enter switches)");
     optionsBox->Add(fullscreen_, 0, wxALL, gap);
@@ -321,6 +334,16 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
     finishMarker_->SetToolTip("A green mark on the compass points to the gas station at the end of the leg "
                               "(an arrow at the compass's edge when it lies further to the side).");
     optionsBox->Add(finishMarker_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
+    randomRivals_ = new wxCheckBox(ob, wxID_ANY, "Random rival &cars");
+    randomRivals_->SetToolTip("The two computer cars drive a different pair of cars from the play disk on each "
+                              "course, including the two expansion cars. Off: the original's selection from the "
+                              "three-car game. The choice stays the same through all legs of a course.");
+    optionsBox->Add(randomRivals_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
+    weatherFix_ = new wxCheckBox(ob, wxID_ANY, "Weather &trigger fix");
+    weatherFix_->SetToolTip("Give wind, rain and snow their own trigger direction and don't lose a weather "
+                            "trigger crossed during an external view. Off: the original's shared direction, "
+                            "which can make rain or snow fail to deactivate.");
+    optionsBox->Add(weatherFix_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
     // Graphics: a summary and the way to the page
     auto* lookBox = new wxStaticBoxSizer(wxVERTICAL, page, "Graphics");
@@ -411,6 +434,18 @@ wxWindow* LauncherFrame::CreateGraphicsPage(wxWindow* parent) {
         boxes[1]->GetItem(1)->SetFlag(wxEXPAND | wxBOTTOM | wxRIGHT | wxTOP | wxLEFT);
         boxes[1]->GetItem(1)->SetBorder(gap);
         lights_->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { UpdateGraphics(); });
+    }
+    // The original's reduced far models: off, the enhanced view draws the full ones at every distance.
+    {
+        wxWindow* box = boxes[0]->GetStaticBox();
+        farLod_ = new wxCheckBox(box, wxID_ANY, "Use original &far models at distance");
+        farLod_->SetToolTip("Off: the full-detail models at every distance, as a powerful computer can. On: the "
+                            "original's reduced models for vehicles and some buildings beyond half a map cell, as "
+                            "the original game drew them.");
+        boxes[0]->Insert(0, farLod_, 0, wxLEFT | wxRIGHT | wxTOP, gap);
+        boxes[0]->GetItem(1)->SetFlag(wxEXPAND | wxBOTTOM | wxRIGHT | wxTOP | wxLEFT);
+        boxes[0]->GetItem(1)->SetBorder(gap);
+        farLod_->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { UpdateGraphics(); });
     }
     for (const SliderDef& s : SLIDERS) {
         wxWindow* box = boxes[s.group]->GetStaticBox();
@@ -660,7 +695,11 @@ void LauncherFrame::Play() {
     Save();
     GameOptions options;
     options.program = wxFileName(program_->GetValue()).GetFullPath();
-    options.gameDir = wxFileName(folder_->GetValue()).GetFullPath();
+    {
+        wxFileName gameDir = wxFileName::DirName(folder_->GetValue());
+        gameDir.MakeAbsolute();
+        options.gameDir = gameDir.GetFullPath();
+    }
     options.car = carCode_;
     options.course = courseCode_;
     options.skill = skill_->GetSelection();
@@ -669,6 +708,9 @@ void LauncherFrame::Play() {
     options.scale = scale_->GetSelection() + MIN_SCALE;
     options.fullscreen = fullscreen_->GetValue();
     options.finishMarker = finishMarker_->GetValue();
+    options.randomRivals = randomRivals_->GetValue();
+    options.weatherFix = weatherFix_->GetValue();
+    options.weight = weight_->GetSelection() + 1;
     options.classic = look_.classic;
     options.resScale = look_.resScale;
     options.aa = look_.aa;
@@ -676,6 +718,7 @@ void LauncherFrame::Play() {
     options.haze = look_.haze;
     options.fogStart = look_.fogStart;
     options.drawDistance = look_.drawDistance;
+    options.farLod = look_.farLod;
     options.enhLights = look_.enhLights;
     options.beamNight = look_.beamNight;
     options.beamDay = look_.beamDay;
@@ -700,6 +743,9 @@ void LauncherFrame::Save() {
     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "RandomRivals", randomRivals_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "WeatherFix", weatherFix_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "Weight", weight_->GetSelection() + 1);
     SaveLook(look_);
     settings::SaveWindowPosition(SECTION, this);
 }
@@ -766,6 +812,7 @@ void LauncherFrame::ShowLook(const Look& look) {
     resolution_->SetSelection(look.resScale - MIN_RES);
     aa_->SetSelection(look.aa - 1);
     lights_->SetValue(look.enhLights);
+    farLod_->SetValue(look.farLod);
     for (int i = 0; i < SLIDER_COUNT; ++i) {
         const int v = look.*SLIDERS[i].field;
         SetSliderValue(i, v);
@@ -779,6 +826,7 @@ Look LauncherFrame::EditedLook() const {
     look.resScale = resolution_->GetSelection() + MIN_RES;
     look.aa = aa_->GetSelection() + 1;
     look.enhLights = lights_->GetValue();
+    look.farLod = farLod_->GetValue();
     for (int i = 0; i < SLIDER_COUNT; ++i) look.*SLIDERS[i].field = sliders_[i].slider->GetValue();
     return look;
 }
@@ -796,6 +844,7 @@ void LauncherFrame::UpdateGraphics() {
     const bool enhanced = graphics_->GetSelection() == 0;
     aa_->Enable(enhanced);
     lights_->Enable(enhanced);
+    farLod_->Enable(enhanced);
     for (int i = 0; i < SLIDER_COUNT; ++i) {
         const bool on = enhanced && (SLIDERS[i].group != 1 || lights_->GetValue());
         sliders_[i].slider->Enable(on);
