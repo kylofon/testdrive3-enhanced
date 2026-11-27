@@ -341,12 +341,13 @@ void lighthouse_rotate(void)
 {
     u16 si = DSW(DS_lighthouse_slot);
     if (si == 0xFFFF) return;
+    u16 bx = si;                                            /* slot */
+    if (DSW(DS_obj_vert_count + bx) == 0) return;           /* not emitted in the game's buffers */
     u16 ax = (u16)((DSW(DS_frame_counter) & 0xFF) << 9);    /* one turn per 128 frames */
     u16 dx = (u16)(DSB(DS_lighthouse_speed) << 1);          /* 95D5: beam radius / 16 */
     if (dx == 0) return;
     dx = (u16)(dx << 3);
     polar(ax, dx);
-    u16 bx = si;                                            /* slot */
     si = DSW(DS_obj_face_base + bx);
     si = (u16)(si * 10 + DSW(DS_face_block));
     si = (u16)((r3_f16(si) & 0x7FF) << 1);                  /* w0 of the object's first face */

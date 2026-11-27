@@ -19,9 +19,8 @@
                                           steering changes) */
 #define ENH_PITCH_SMOOTH_MS   60.0     /* low-pass on the camera pitch (horizon row) */
 #define ENH_DEFAULT_HAZE      70       /* distance fog: percent of the horizon's sky colour at the far edge */
-#define ENH_DEFAULT_DRAW_DIST 7        /* draw distance in map cells (enh_far.c; 0 = the game's own cells only) */
-#define ENH_MAX_DRAW_DIST     8        /* the map is a 32 x 16 torus: its nearest images reach only 8 cells north /
-                                          south, so a larger radius would end short of the fog in those directions */
+#define ENH_DEFAULT_DRAW_DIST 18       /* draw distance in map cells (enh_far.c; 0 = the game's own cells only) */
+#define ENH_MAX_DRAW_DIST     18       /* the map is a 32 x 16 torus: 18 reaches every distinct cell */
 #define ENH_DEFAULT_FOG_START 10       /* where the fog begins: percent of the way to its full distance */
 #define ENH_DEFAULT_BEAM_NIGHT 100     /* headlight beams' strength at night, percent */
 #define ENH_DEFAULT_BEAM_DAY   35      /* ... by day (in rain or snow): the day palette's lit colours are far

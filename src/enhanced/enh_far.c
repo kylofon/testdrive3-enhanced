@@ -7,6 +7,7 @@
 #include "enh_internal.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,11 +15,39 @@ int enh_draw_dist = ENH_DEFAULT_DRAW_DIST;
 
 /* the cells of the game's last world build (enh_world_begin / enh_world_cell from world_build_visible) */
 static bool game_cell[512];
+u16 enh_far_lh_slot = 0xFFFF;
 
 void enh_world_begin(void) { memset(game_cell, 0, sizeof game_cell); }
 void enh_world_cell(u16 c) { game_cell[c & 0x1FF] = true; }
 
 static EnhSnap *F;
+static u8 far_outlier_logged_leg = 0xFF;
+
+void polar(u16 angle, u16 len);                            /* render.c */
+
+static void far_lighthouse(EnhObj *eo, u8 model, int px, int pz)
+{
+    if (eo->far_count == 0) return;
+    u16 es = DSW(DS_objects_set + 2), set = DSW(DS_objects_set);
+    if (es == 0) return;
+    u16 si = (u16)(rd16(es, (u16)(set + 2 * model)) + set);
+    int nf = rd8(es, si), nv = rd8(es, (u16)(si + 1));
+    if (nf <= 0 || nv <= 1) return;
+    u16 face0 = (u16)(si + 4 + 6 * nv);                   /* first face, 4-byte model format */
+    u16 v0 = rd16(es, face0) & 0x7FF;
+    if (v0 + 1 >= (u16)nv) return;
+    u16 ax = (u16)((DSW(DS_frame_counter) & 0xFF) << 9);
+    u16 dx = (u16)(DSB(DS_lighthouse_speed) << 1);
+    if (dx == 0) return;
+    dx = (u16)(dx << 3);
+    polar(ax, dx);
+    int cx4 = (int)F->cam_x * 4, cz4 = (int)F->cam_z * 4;
+    int x4 = px * 4 - cx4 + (s16)DSW(DS_dxl2);
+    int z4 = pz * 4 - cz4 + (s16)DSW(DS_dxr2);
+    u16 b = eo->far_base;
+    F->fvx[b + v0] = x4; F->fvz[b + v0] = z4;
+    F->fvx[b + v0 + 1] = x4; F->fvz[b + v0 + 1] = z4;
+}
 
 /* x4 units from the camera the ring may reach (one cell past its radius, for models that overhang their cell).
  * Offsets are 32-bit, so this is no longer tied to the 16-bit wrap of the game's vertex arrays. */
@@ -180,20 +209,50 @@ static void emit(u16 es, u16 a, int nf, int nv, int px, int pz, u16 py, u8 rot, 
     for (int k = 0; k < nv; k++) {
         s16 va, vb, vc;
         rotate(es, (u16)(a + 2 * k), stride, rot, shear, &va, &vb, &vc);
-        F->fvy[base + k] = (s16)(va + py);
+        int vy = (int)va + py;
+        if (vy < (int)py - 512) vy = (int)py - 512;
+        F->fvy[base + k] = (s16)vy;
         F->fvx[base + k] = vb + x4 - cx4;
         F->fvz[base + k] = vc + z4 - cz4;
         if (abs(F->fvx[base + k]) > F_reach || abs(F->fvz[base + k]) > F_reach) return;   /* nothing kept */
     }
+
+    /* Workaround for outlier vertices in original TD3 model data (not modified): some models contain an
+     * extreme Y vertex far above the rest (e.g. barn model 0x38, A[0]=15133). In the far ring these project
+     * far above screen and rasterize as sky-filling "monoliths", especially visible at night on OR faces.
+     * Skip faces referencing such outliers; keep the rest of the model intact. Log once per leg. */
+    int outlier_thr = 0x7fffffff;
+    {
+        int max1 = -32768, max2 = -32768;
+        for (int k = 0; k < nv; k++) {
+            int y = F->fvy[base + k];
+            if (y > max1) { max2 = max1; max1 = y; }
+            else if (y > max2) max2 = y;
+        }
+        if (max1 > (int)py + 1024 && max1 > max2 + 512) {
+            outlier_thr = max2 + 512;
+            u8 leg = DSB(DS_leg_index);
+            if (far_outlier_logged_leg != leg) {
+                fprintf(stderr, "enh_far: skipping faces with extreme Y outlier vertices in original model data (leg=%u py=%d max=%d next=%d)\n",
+                        (unsigned)leg, (int)py, max1, max2);
+                far_outlier_logged_leg = leg;
+            }
+        }
+    }
+
     F->nfv += nv;
     u16 f = (u16)(a + 3 * stride);
     for (int k = 0; k < nf; k++, f = (u16)(f + 8)) {
         u16 w0 = rd16(es, f), w1 = rd16(es, (u16)(f + 2)), w2 = rd16(es, (u16)(f + 4)), w3 = rd16(es, (u16)(f + 6));
         int n = (w0 >> 14) + 1;
-        u16 v[4] = { (u16)(w0 & 0x7FF), (u16)(w1 & 0x7FF), (u16)(w2 & 0x7FF), (u16)(w3 & 0x7FF) };
+        u32 v[4] = { w0 & 0x7FFu, w1 & 0x7FFu, w2 & 0x7FFu, w3 & 0x7FFu };
         bool ok = true;
-        for (int j = 0; j < n; j++) { if (v[j] >= nv) ok = false; v[j] = (u16)(v[j] + F->nv + base); }
+        for (int j = 0; j < n; j++) {
+            if (v[j] >= (u32)nv) { ok = false; break; }
+            if (F->fvy[base + v[j]] > outlier_thr) { ok = false; break; }
+        }
         if (!ok) continue;
+        for (int j = 0; j < n; j++) v[j] = v[j] + F->nv + base;
         EnhFarFace *e = &F->ff[F->nff++];
         e->w0 = (u16)(w0 & 0xF800);
         e->w3 = (u16)(w3 & 0xF800);
@@ -279,35 +338,41 @@ void enh_far_build(EnhSnap *s)
     s->nfv = s->nff = 0;
     s->nspr = s->nspr_game;
     for (int o = 0; o < s->nobj && o < ENH_MAX_OBJS; o++) s->obj[o].far_base = s->obj[o].far_count = 0;
+    enh_far_lh_slot = DSW(DS_lighthouse_slot);
     if (enh_draw_dist <= 0 || s->menu_preview) return;
     int R = enh_draw_dist, cam_x = DSW(DS_cam_x), cam_z = DSW(DS_cam_z);
     F_reach = (R + 1) * 0x1000;
     long long limit = (long long)R * 0x400;
     limit *= limit;                                            /* squared, in position units */
 
-    /* Every canonical cell has exactly one image nearest the camera on the torus. Build the near ones first so
-     * that a full buffer drops the far ones. */
+    /* Collect every wrap image of each canonical cell within range. A 32x16 torus can place the same cell
+     * more than once (nearest image may be behind an untraversable edge while another is along the road). */
     struct Cell {
         int c, px, pz;                                         /* cell index and the image's centre position */
         u8 ch_x, cz;                                           /* the canonical cell bytes objects are matched by */
         int xs, zs;                                            /* image position - canonical position */
         long long d;
-    } cells[512];
+    } cells[2048];
     int nc = 0;
     for (int row = 0; row < 16; row++)
         for (int col = 0; col < 32; col++) {
             int c = col + row * 32;
             if (game_cell[c]) continue;
             int canon_px = col * 0x400 + 0x200, canon_pz = (15 - row) * 0x400 + 0x200;
-            int dx = wrap_delta(canon_px - cam_x, 0x8000), dz = wrap_delta(canon_pz - cam_z, 0x4000);
-            long long d2 = (long long)dx * dx + (long long)dz * dz;
-            if (d2 > limit) continue;
-            if (fabs((double)dx / 1024.0) > R + 0.75 || fabs((double)dz / 1024.0) > R + 0.75) continue;
-            struct Cell *e = &cells[nc++];
-            e->c = c; e->px = cam_x + dx; e->pz = cam_z + dz;
-            e->ch_x = (u8)(col << 2); e->cz = (u8)((15 - row) << 2);
-            e->xs = e->px - canon_px; e->zs = e->pz - canon_pz;
-            e->d = d2;
+            int bdx = wrap_delta(canon_px - cam_x, 0x8000), bdz = wrap_delta(canon_pz - cam_z, 0x4000);
+            for (int ox = -0x8000; ox <= 0x8000; ox += 0x8000)
+                for (int oz = -0x4000; oz <= 0x4000; oz += 0x4000) {
+                    int dx = bdx + ox, dz = bdz + oz;
+                    long long d2 = (long long)dx * dx + (long long)dz * dz;
+                    if (d2 > limit) continue;
+                    if (fabs((double)dx / 1024.0) > R + 0.75 || fabs((double)dz / 1024.0) > R + 0.75) continue;
+                    if (nc >= (int)(sizeof cells / sizeof cells[0])) continue;
+                    struct Cell *e = &cells[nc++];
+                    e->c = c; e->px = cam_x + dx; e->pz = cam_z + dz;
+                    e->ch_x = (u8)(col << 2); e->cz = (u8)((15 - row) << 2);
+                    e->xs = e->px - canon_px; e->zs = e->pz - canon_pz;
+                    e->d = d2;
+                }
         }
     for (int i = 1; i < nc; i++) {                             /* nearest first */
         struct Cell t = cells[i];
@@ -320,8 +385,7 @@ void enh_far_build(EnhSnap *s)
         u16 m = DSW(DS_leg_map + 2 * cl->c);
         place((u8)m, 0, cl->px, cl->pz, (u16)(m & 0x3F00), (u8)((m >> 8) & 0xC0), 0);
         /* its static objects, matched in the canonical cell but placed in the image nearest the camera */
-        s16 lim = (s16)(2 * DSW(DS_obj_first_static) - 2);
-        for (s16 so = (s16)(2 * DSW(DS_obj_count) - 2); so >= lim && so >= 0; so -= 2) {
+        for (s16 so = (s16)(2 * DSW(DS_obj_count) - 2); so >= 0; so -= 2) {
             u16 o = (u16)so;
             if ((u8)(DSB(DS_obj_x + o + 1) & 0x7C) != cl->ch_x) continue;
             u16 z = DSW(DS_obj_z + o);
@@ -329,9 +393,20 @@ void enh_far_build(EnhSnap *s)
             u16 f = DSW(DS_obj_flags + o);
             if ((f >> 8) & 0x30) continue;                     /* moving / parked */
             if ((f & 0x3F) == 0) continue;
-            place((u8)f, 1, (int)DSW(DS_obj_x + o) + cl->xs, (int)z + cl->zs,
+            int base = F->nfv;
+            int px = (int)DSW(DS_obj_x + o) + cl->xs, pz = (int)z + cl->zs;
+            place((u8)f, 1, px, pz,
                   (u16)(DSW(DS_obj_y8 + o) >> 3), (u8)((DSW(DS_obj_heading + o) >> 8) & 0xC0),
                   (s8)(DSW(DS_obj_pitch + o) >> 8));
+            if (F->nfv > base && (int)(o / 2) < F->nobj) {
+                EnhObj *eo = &F->obj[o / 2];
+                eo->far_base = (u16)base; eo->far_count = (u16)(F->nfv - base);
+                eo->far_x = px; eo->far_z = pz;
+                if (f == 0x0F) {
+                    if (enh_far_lh_slot == 0xFFFF) enh_far_lh_slot = o;
+                    if (enh_far_lh_slot == o) far_lighthouse(eo, (u8)(f & 0x3F), px, pz);
+                }
+            }
         }
     }
     /* parked objects (houses, boats: 1000h set, 2000h clear) that the game draws only within its window
@@ -349,8 +424,15 @@ void enh_far_build(EnhSnap *s)
         u16 p = (u16)(rd16(es, (u16)(set + 2 * (f & 0x3F))) + set);
         int nv; u16 voff;
         int nf = model_header(far_make(es, p), (u16)(abs(dx) + abs(dz)), &nv, &voff);
-        emit(es, voff, nf, nv, cam_x + dx, cam_z + dz, (u16)(DSW(DS_obj_y8 + 2 * o) >> 3),
+        int base = F->nfv;
+        int px = cam_x + dx, pz = cam_z + dz;
+        emit(es, voff, nf, nv, px, pz, (u16)(DSW(DS_obj_y8 + 2 * o) >> 3),
              (u8)(DSW(DS_obj_heading + 2 * o) >> 8), (s8)(DSW(DS_obj_pitch + 2 * o) >> 8));
+        if (F->nfv > base && o < F->nobj) {
+            EnhObj *eo = &F->obj[o];
+            eo->far_base = (u16)base; eo->far_count = (u16)(F->nfv - base);
+            eo->far_x = px; eo->far_z = pz;
+        }
     }
 
     /* Moving vehicles the game left out of its small visibility window (sim_traffic.c: the ranges are zeroed,

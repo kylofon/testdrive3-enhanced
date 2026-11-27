@@ -81,7 +81,7 @@ const SliderDef SLIDERS[] = {
     {0, "DrawDistance", "&Draw distance:",
      "How far the scenery reaches: the enhanced view also draws the map cells around the camera that the game "
      "itself leaves out (its detail level builds 3, 6 or 10 cells ahead), with their trees and cars.",
-     0, 8, 7, &Look::drawDistance, CellsUnit},
+     0, 18, 18, &Look::drawDistance, CellsUnit},
     {0, "Haze", "F&og:",
      "How much of the sky's colour at the horizon the farthest scenery takes on. The scenery sinks into it "
      "gradually as it gets farther, the ground too; at 100 % the edge of the view fades out completely.",

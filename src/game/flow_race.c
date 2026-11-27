@@ -536,6 +536,58 @@ static int ai_trace_script_finish(FarPtr pbin, u8 opp, u8 start_x, u8 start_y, u
     return -1;
 }
 
+/* True if replaying the route revisits any map cell. Detours into dead-end spurs that
+ * return to a previously visited cell are valid lane routes but bad racing lines. */
+static bool ai_route_revisits_cell(FarPtr pbin, u8 start_x, u8 start_y, u8 start_wp,
+                                   const AiRouteResult *r, int finish_cell)
+{
+    u8 visited[512 / 8];
+    u8 x = start_x, y = start_y, wp = start_wp;
+    u8 beh = r->initial, bi = 0;
+    memset(visited, 0, sizeof(visited));
+    visited[(y * 32 + x) / 8] |= (u8)(1u << ((y * 32 + x) % 8));
+    for (int steps = 0; steps < 4096; steps++) {
+        u8 tile = ai_map_tile(x, y);
+        u16 flags; u8 count;
+        if ((int)(y * 32 + x) == finish_cell) return false;
+        if (!ai_lane_wp(pbin, tile, wp, &flags, &count)) return false;
+        if ((flags & 0xC0) == 0x80) {
+            u8 rot = ai_map_rot(x, y);
+            u8 worldSide = (u8)((rot + (flags & 3)) & 3);
+            int dx[4] = {0,1,0,-1}, dy[4] = {-1,0,1,0};
+            u8 nx = (u8)((x + dx[worldSide] + 32) % 32);
+            u8 ny = (u8)((y + dy[worldSide] + 16) % 16);
+            u8 nrot = ai_map_rot(nx, ny);
+            u8 entryFlags = (u8)(0xC0 | (((worldSide + 2 - nrot) & 3)));
+            u8 entryWp;
+            if (ai_find_entry(pbin, ai_map_tile(nx, ny), entryFlags, &entryWp)) {
+                int cell = ny * 32 + nx;
+                if (visited[cell / 8] & (u8)(1u << (cell % 8))) return true;
+                visited[cell / 8] |= (u8)(1u << (cell % 8));
+                x = nx; y = ny; wp = entryWp;
+                continue;
+            }
+            {
+                u8 revFlags = (u8)(0xC0 | (flags & 3));
+                if (ai_find_entry(pbin, tile, revFlags, &entryWp)) { wp = entryWp; continue; }
+            }
+            return false;
+        }
+        {
+            u16 controlFlags = (flags & 0x80) ? 0 : flags;
+            bool consumes = (controlFlags & 0xBF3F) != 0;
+            int off = ai_branch_offset(controlFlags, beh);
+            int nextWp;
+            if (off == 0x7FFF) off = 1;
+            nextWp = (int)wp + off;
+            if (nextWp < 0 || nextWp >= count) return false;
+            if (consumes) { if (bi < r->nbranch) beh = r->branch[bi++]; }
+            wp = (u8)nextWp;
+        }
+    }
+    return false;
+}
+
 static int ai_probe_routes(FarPtr pbin, int finish_cell, u8 start_x, u8 start_y, u8 start_wp,
                             AiRouteResult *out, int max_out)
 {
@@ -567,8 +619,11 @@ static int ai_probe_routes(FarPtr pbin, int finish_cell, u8 start_x, u8 start_y,
             u16 flags; u8 count;
             if ((int)(cur.y * 32 + cur.x) == finish_cell) {
                 if (nres < AI_ROUTE_MAX_RESULTS) {
-                    AiRouteResult *r = &res[nres++]; r->initial = cur.initial; r->nbranch = cur.nbranch; r->steps = cur.steps; r->fx = cur.x; r->fy = cur.y;
-                    for (u8 i = 0; i < cur.nbranch; i++) r->branch[i] = cur.branch[i];
+                    AiRouteResult cand;
+                    cand.initial = cur.initial; cand.nbranch = cur.nbranch; cand.steps = cur.steps; cand.fx = cur.x; cand.fy = cur.y;
+                    for (u8 i = 0; i < cur.nbranch; i++) cand.branch[i] = cur.branch[i];
+                    if (!ai_route_revisits_cell(pbin, start_x, start_y, start_wp, &cand, finish_cell))
+                        res[nres++] = cand;
                 }
                 continue;
             }

@@ -365,6 +365,8 @@ static double frame_period(u64 t_new, u64 t_old)
     return period > 2.0 * nominal || period <= 0 ? nominal : period;
 }
 
+void polar(u16 angle, u16 len);
+
 static void view_compute(void)
 {
     const EnhSnap *c = enh_cur, *p = enh_prev;
@@ -500,6 +502,29 @@ static void view_compute(void)
                 v->vx[g + i] = (float)(v->cam_x4 + car_off_x + nx + 4.0 * dx - dxc);
                 v->vz[g + i] = (float)(v->cam_z4 + car_off_z + nz + 4.0 * dz - dzc);
                 v->vy[g + i] = (float)(c->fvy[b + i] + dy);
+            }
+            if (e->flags == 0x0F && (DSW(DS_lighthouse_slot) == (u16)(2 * o) || enh_far_lh_slot == (u16)(2 * o))) {
+                /* lighthouse: beam vertices are animated, not model-rotated */
+                u16 es = DSW(DS_objects_set + 2), set = DSW(DS_objects_set);
+                if (es != 0) {
+                    u16 si = (u16)(rd16(es, (u16)(set + 2 * (e->flags & 0x3F))) + set);
+                    int nf = rd8(es, si), nv = rd8(es, (u16)(si + 1));
+                    if (nf > 0 && nv > 1) {
+                        u16 v0 = rd16(es, (u16)(si + 4 + 6 * nv)) & 0x7FF;
+                        if (v0 + 1 < (u16)nv) {
+                            u16 ax = (u16)((DSW(DS_frame_counter) & 0xFF) << 9);
+                            u16 dl = (u16)(DSB(DS_lighthouse_speed) << 1);
+                            if (dl != 0) {
+                                dl = (u16)(dl << 3);
+                                polar(ax, dl);
+                                double bx4 = v->cam_x4 + car_off_x + 4.0 * dx - dxc + (s16)DSW(DS_dxl2);
+                                double bz4 = v->cam_z4 + car_off_z + 4.0 * dz - dzc + (s16)DSW(DS_dxr2);
+                                v->vx[g + v0] = v->vx[g + v0 + 1] = (float)bx4;
+                                v->vz[g + v0] = v->vz[g + v0 + 1] = (float)bz4;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
