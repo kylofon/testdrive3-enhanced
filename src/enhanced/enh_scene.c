@@ -416,9 +416,12 @@ static void draw_point(int v0, u16 w0)
     double r = fmin(atan2(size, d < 1e-3 ? 1e-3 : d) * RAD2PX, 255.0) - 0.5;
     if (r < 0.5) return;
     int owner = -1;                                          /* last object whose range holds v */
+    int far_v = v0 - S->nv;                                  /* index in the far ring, if v0 is there */
     for (int o = S->nobj - 1; o >= 0; o--) {
         const EnhObj *e = &S->obj[o];
-        if (e->rbase <= v0 && e->rbase + e->rcount >= v0) { owner = o; break; }
+        if (e->rcount && e->rbase <= v0 && v0 < e->rbase + e->rcount) { owner = o; break; }
+        if (far_v >= 0 && e->far_count && (u16)far_v >= e->far_base
+            && (u16)far_v < (u16)(e->far_base + e->far_count)) { owner = o; break; }
     }
     if (owner < 0) return;
     double a = floor(V->obj_heading[owner] / 256.0) * 256.0;

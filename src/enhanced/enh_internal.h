@@ -37,7 +37,7 @@ typedef struct {
  * the colour pair, and full vertex indices (the game's records hold 11 bits). */
 typedef struct {
     u16 w0, w3, pair;
-    u16 v[4];
+    u32 v[4];
 } EnhFarFace;
 
 typedef enum { OV_PIXELS, OV_QUAD, OV_LINE } EnhOvKind;
@@ -141,6 +141,7 @@ typedef struct {
 /* ---- the far ring (enh_far.c) ---- */
 /* Build the snapshot's far ring: the cells within enh_draw_dist of the camera that the game did not build. */
 void enh_far_build(EnhSnap *s);
+extern u16 enh_far_lh_slot;                                /* active far-ring lighthouse slot (2*slot), or 0xFFFF */
 
 /* ---- sprites (enh_sprite.c) ---- */
 typedef struct {

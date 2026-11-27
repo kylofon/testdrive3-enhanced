@@ -34,6 +34,13 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * **Weather trigger fix** (`--weather-fix`, on by default): gives wind, rain and snow their own trigger
     direction and keeps a weather trigger crossed during an external view. Off: the original's shared
     direction, which can make rain or snow fail to deactivate. Stored as `WeatherFix` in `settings.ini`.
+  * **AI Opponent Routing** (`--ai-opponent-routing`, default `legacy`): controls how opponent AI branch scripts are
+    chosen at leg load. `Legacy` uses the scripts stored in the scene data. `Modern: Deterministic` probes valid
+    lane routes to the resolved finish and picks stable routes, giving opponents separate routes when possible.
+    `Modern: Random` picks an independent random valid route per opponent. Stored as `AiOpponentRouting` in
+    `settings.ini` (old `AiRouteFinding` values are migrated).
+  * **Debug keys** (`TD3_DEBUG_KEYS=1`, off by default): enables the original's dormant debug keys - T rain,
+    S snow, N night, F8 end leg - and makes the car invulnerable. Stored as `DebugKeys` in `settings.ini`.
   * **Car weight** (`--weight`, default 1): a gravity multiplier that keeps cars planted over hills. `1x` is
     the original; `2x` and `3x` make the car heavier (less air over crests, faster fall, more climbing
     resistance and grip). Stored as `Weight` in `settings.ini`.
@@ -52,7 +59,7 @@ and Key Bindings follow Aces of the Pacific Enhanced's.
   * Sliders, each with a number field beside it to type the value (kept in step with the slider):
     * **Motion** (`--motion-delay`, 0-100 %, default 100: moves between the game's last two frames, never
       guesses; less guesses ahead, which answers sooner but overshoots when the steering changes).
-    * **Draw distance** (`--draw-distance`, 0-8 cells around the camera, default 7 — 8 is as far as the wrapping 32×16 leg map reaches north and south; 0 is the game's own, with its 3/6/10 cells). The far cells also carry their trees and the other cars, including across the map's west/east and north/south seams.
+    * **Draw distance** (`--draw-distance`, 0-18 cells around the camera, default 18 — the whole wrapping 32×16 leg map; 0 is the game's own, with its 3/6/10 cells). The far cells also carry their trees and the other cars, including across the map's west/east and north/south seams.
     * **Fog** (`--haze`, 0-100 % of the sky's colour at the edge of the view, default 70; 0 = off).
     * **Fog begins** (`--fog-start`, 0-90 % of the way to where it is full, default 10).
     * **Use original far models at distance** (`--far-lod`, off by default): the enhanced view normally draws the

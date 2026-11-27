@@ -30,7 +30,7 @@ struct Look {
     int motionDelay = 100;  // --motion-delay
     int haze = 70;          // --haze
     int fogStart = 10;      // --fog-start
-    int drawDistance = 7;   // --draw-distance
+    int drawDistance = 18;  // --draw-distance
     bool farLod = false;    // --far-lod
     bool enhLights = true;  // --enh-lights
     int beamNight = 100;    // --beam-night
@@ -92,6 +92,8 @@ private:
     wxCheckBox* finishMarker_ = nullptr;
     wxCheckBox* randomRivals_ = nullptr;
     wxCheckBox* weatherFix_ = nullptr;
+    wxChoice* aiOpponentRouting_ = nullptr;
+    wxCheckBox* debugKeys_ = nullptr;
     wxChoice* weight_ = nullptr;
     wxStaticText* lookNote_ = nullptr;  // the main page's summary of the graphics
     wxButton* play_ = nullptr;

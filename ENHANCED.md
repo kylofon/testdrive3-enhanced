@@ -6,7 +6,7 @@ cockpit and HUD, all at the game's own pace (about 6.3 frames a second in a race
 the host, for every displayed frame, and lays the result over the VGA screen.
 
 Stage 1 (this version): **smooth motion at the display's rate** and **smooth, high-resolution graphics** from
-the original data only. The draw distance is extended to 7 map cells around the camera (see Draw distance);
+the original data only. The draw distance is extended to 18 map cells around the camera (see Draw distance);
 within the game's own 3, 6 or 10 cells what the game builds is what is drawn.
 
 Files: `enhanced.c` (hooks, snapshots, the overlay record, the smooth view state, composition),
@@ -234,7 +234,7 @@ only up to C00h / 1100h / 1C00h (`B6E2`, by detail): scenery appears a few hundr
 hold 1600 vertices and faces, its physics reads the ground from the renderer, so it is not asked for more.
 
 `ENH:` the enhanced view builds the rest itself (`enh_far.c`), for every game frame, read-only: every map cell
-whose centre is within `--draw-distance` cells of the camera (default 7, at most 8: the 32×16 torus's nearest images reach 8 cells north and south, and the fog is round)
+whose centre is within `--draw-distance` cells of the camera (default 18, the whole 32×16 wrapping leg map; 0 = the game's own cells only)
 that the game did not build (`enh_world_begin` / `enh_world_cell` record its cells in `world_build_visible`),
 from the same tile and object models as `model_place`. The map wraps every 32 cells in X and 16 in Z: the ring
 picks each cell's nearest image across those seams, as the game's own wrapped cell table does, so a cell just
@@ -260,8 +260,8 @@ which the ring then holds; filled around the camera, its ground covered the sky 
 hid nearby cars and scenery. They are drawn before the game's faces and leave their depth in a second, far buffer; the game's faces
 are then drawn only where they are nearer than it (with 1 % allowance), since a cell the game skipped at the
 side can be nearer than one it built ahead. Sprites reach as far as the ring (their size below the game's
-smallest copy in proportion to the angle) and are tested against both. The ring's lamps are not drawn (a lamp
-needs its owner object). The ring's fixed buffers hold the whole map: a headless run at 18 cells used about
+smallest copy in proportion to the angle) and are tested against both. Far-ring lamps are drawn when their owner
+object's far-ring vertex range is known. The ring's fixed buffers hold the whole map: a headless run at 18 cells used about
 29,000 vertices and 29,000 faces, well under the 65,536 each, and about 22,000 primitives a frame against
 about 1,800 at the old 7-cell limit. `--draw-distance 0` draws the game's cells only.
 
@@ -381,6 +381,19 @@ applying the effect.
 With `portcfg.weather_fix` on (default, `--weather-fix 0` restores the original), each weather type keeps its
 own ramp direction and a transition crossed during an external view stays pending until the view returns.
 
+## AI Opponent Routing
+
+`ENH --ai-opponent-routing` (default `legacy`): controls opponent AI branch scripts at leg load. `Legacy` uses
+the scripts stored in the scene data. `Modern: Deterministic` and `Modern: Random` probe valid lane routes to
+the resolved finish cell using the same control-point/branch semantics as the game, then write a route script
+into `DS_opp_scripts`. The original scene data files are unchanged; branch scripts remain the on-disk/runtime
+format for DOS compatibility.
+
+Finish resolution: SCENE02 uses the unique `0x51` finish-line cell when present; other scenes trace original
+opponent scripts through the lane graph and require agreement. If unresolved, original scripts are kept.
+`Deterministic` picks stable routes and gives opponents separate routes when possible; `Random` picks an
+independent random valid route per opponent.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
@@ -414,9 +427,10 @@ the display rate (VSync).
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
-| `--draw-distance N` | 7 | map cells drawn around the camera, with their scenery, trees and cars (0..8, 8 being the wrapping leg map's reach north and south; 0 = the game's own cells) |
+| `--draw-distance N` | 18 | map cells drawn around the camera, with their scenery, trees and cars (0..18, the whole wrapping leg map; 0 = the game's own cells) |
 | `--random-rivals 0\|1` | 1 | random cars for the opponents (0 = the original's three-car selection) |
 | `--weather-fix 0\|1` | 1 | separate wind/rain/snow trigger direction and keep transitions during external view (0 = original) |
+| `--ai-opponent-routing legacy\|deterministic\|random` | legacy | AI opponent routing: `legacy` scene scripts, `deterministic` stable separate routes when possible, `random` independent random route per opponent |
 | `--weight 1\|2\|3` | 1 | car weight/gravity multiplier (1 = original; higher keeps cars planted over hills) |
 | `--far-lod 0\|1` | 0 | full-detail models at every distance (0) or the original's reduced far models beyond half a cell (1) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |

@@ -1,6 +1,8 @@
 // game.cpp -- PLAYDISK.DAT, the .LST names, the files the game needs and starting it.
 #include "game.h"
 
+#include <stdlib.h>
+
 #include <wx/ffile.h>
 #include <wx/filename.h>
 #include <wx/log.h>
@@ -104,6 +106,10 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
     args.insert(args.end(), {"--finish-marker", o.finishMarker ? "1" : "0"});
     args.insert(args.end(), {"--random-rivals", o.randomRivals ? "1" : "0"});
     args.insert(args.end(), {"--weather-fix", o.weatherFix ? "1" : "0"});
+    static const char* kAiRouting[] = { "legacy", "deterministic", "random" };
+    int ai = o.aiOpponentRouting;
+    if (ai < 0 || ai > 2) ai = 0;
+    args.insert(args.end(), {"--ai-opponent-routing", kAiRouting[ai]});
     args.insert(args.end(), {"--weight", wxString::Format("%d", o.weight)});
     args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
     if (o.classic) args.push_back("--classic");
@@ -130,11 +136,13 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
 
     wxExecuteEnv env;  // an empty variable map: the game inherits the launcher's environment
     env.cwd = wxFileName(o.program).GetPath();
+    if (o.debugKeys) setenv("TD3_DEBUG_KEYS", "1", 1);
     long pid;
     {
         wxLogNull quiet;  // wxExecute would show its own error box
         pid = wxExecute(argv.data(), wxEXEC_ASYNC, nullptr, &env);
     }
+    if (o.debugKeys) unsetenv("TD3_DEBUG_KEYS");
     if (pid == 0) {
         error = wxString::Format("Couldn't start %s.\n\n%s", wxFileName(o.program).GetFullName(),
                                  wxSysErrorMsgStr(wxSysErrorCode()));

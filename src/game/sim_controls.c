@@ -32,6 +32,7 @@ void key_dispatch(void)
     gfx_set_draw_page(0);
     k = DSB(DS_key_code);
     DSB(DS_key_code) = 0;
+    if (DSB(DS_debug_keys) != 0 && k == 0x88) { DSW(DS_race_state) = 3; return; } /* ENH debug: F8 ends leg */
     if (k >= 0x40 && k < 0x80) {
         u16 off = SEGW(0x0E12, 0x0000 + 2 * (k - 0x40));         /* table CS:0000 */
         codeptr_lookup_near(0x0E12, off)();
